@@ -19,7 +19,7 @@ if [ ! -t 0 ]; then
     echo "Running unoserver-docker in non-interactive."
     echo "For interactive mode use '-it', e.g. 'docker run -v /tmp:/data -it unoserver/unoserver-docker'."
 
-    unoserver --interface 0.0.0.0
+    exec unoserver --interface 0.0.0.0
     # # run supervisord in foreground
     # supervisord -c "$SUPERVISOR_NON_INTERACTIVE_CONF"
 else

@@ -1,4 +1,4 @@
-FROM eclipse-temurin:24.0.1_9-jdk-alpine-3.21
+FROM eclipse-temurin:24.0.2_12-jdk-alpine-3.21
 
 ARG BUILD_CONTEXT="build-context"
 ARG UID=worker
@@ -38,6 +38,8 @@ RUN apk add --no-cache \
     fontconfig && \
     fc-cache -f
 
+RUN apk upgrade --no-cache
+
 RUN rm -rf /var/cache/apk/* /tmp/*
 
 # https://github.com/unoconv/unoserver/
@@ -56,6 +58,7 @@ USER ${UID}
 WORKDIR /home/worker
 ENV HOME="/home/worker"
 
-VOLUME ["/data"]
 EXPOSE 2003
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD netstat -tln | grep -q ':2003' || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

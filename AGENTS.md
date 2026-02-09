@@ -71,6 +71,12 @@ You should proactively recommend and, when asked to implement, wire in tools for
 - `trivy` for Common Vulnerabilities and Exposures (CVE) scanning of images and dependencies
 - `grype` as an alternative scanner (optional)
 - `dockle` for container image best-practices checks
+- **`docker-bench-security`** for auditing Docker host and container configuration against the CIS Docker Benchmark
+
+When integrating `docker-bench-security`, clearly state:
+- which checks are expected to pass in containerized CI environments
+- which findings are informational vs actionable
+- any justified deviations from CIS recommendations (with rationale)
 
 ### Supply-chain and provenance
 - `cosign` for signing images (optional, if the release workflow includes it)
@@ -79,8 +85,9 @@ You should proactively recommend and, when asked to implement, wire in tools for
 ### Continuous Integration
 Propose a Continuous Integration (CI) workflow (for example GitHub Actions) that runs:
 - Dockerfile linting
-- build
-- scanner(s) with a clear severity policy
+- image build
+- vulnerability scanning with a clear severity policy
+- Docker Bench Security checks (when feasible in the CI environment)
 - basic runtime smoke test (container starts, health endpoint responds, sample conversion if feasible)
 
 If the user wants to avoid specific platforms, propose an alternative CI runner.

@@ -21,19 +21,102 @@
       "problemMatcher": []
     },
     {
-      "label": "run unoserver-docker",
+      "label": "debug: run unoserver-docker",
       "type": "shell",
       "dependsOn": "build unoserver-docker",
-      "command": "docker",
-      "args": [
-        "run",
-        "--rm",
-        "-p",
-        "2003:2003",
-        "unoserver-docker:local"
-      ],
+      "command": "${workspaceFolder}/scripts/unoserver/run-debug.sh",
       "options": {
         "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "debug: stop unoserver-docker",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/unoserver/stop-debug.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "debug: spawn a shell",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/unoserver/spawn-shell.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "audit: scan unoserver-docker (trivy)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/trivy/scan-image.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: office fixtures to pdf",
+      "type": "shell",
+      "command": "${workspaceFolder}/tests/test-office-fixtures-to-pdf.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "audit: scan docker bench security (full host)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/docker-bench/run.sh",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "DOCKER_BENCH_ARGS": "-i unoserver-docker"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "audit: scan docker bench security (containers only)",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/docker-bench/run.sh",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "DOCKER_BENCH_ARGS": "-c container_runtime,container_images -i unoserver-docker"
+        }
       },
       "presentation": {
         "reveal": "always",

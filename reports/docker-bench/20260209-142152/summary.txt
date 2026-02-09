@@ -1,0 +1,19 @@
+Docker Bench Security summary
+UTC timestamp: 20260209-142152
+Tool image: local/docker-bench-security:1.6.0
+Tool version ref: v1.6.0
+Args: -b -l /report/docker-bench-security.log -i unoserver-docker
+Exit code: 0
+
+Counts from stdout log:
+  PASS: 51
+  WARN: 31
+  INFO: 70
+  NOTE: 11
+  [INFO] Checks: 117
+  [INFO] Score: 17
+
+Files:
+  /opt/ragtime_proj/unoserver-docker/reports/docker-bench/20260209-142152/docker-bench.stdout.log
+  /opt/ragtime_proj/unoserver-docker/reports/docker-bench/20260209-142152/docker-bench-security.log
+  /opt/ragtime_proj/unoserver-docker/reports/docker-bench/20260209-142152/docker-bench-security.log.json
