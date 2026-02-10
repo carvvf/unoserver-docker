@@ -1,0 +1,21 @@
+services:
+  unoserver:
+    image: "${IMAGE_REF:-unoserver-docker:local}"
+    container_name: "${CONTAINER_NAME:-unoserver-docker-debug}"
+    network_mode: "${DOCKER_NETWORK:-bridge}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    cpus: "${CPU_LIMIT:-2}"
+    mem_limit: "${MEMORY_LIMIT:-1g}"
+    pids_limit: "${PIDS_LIMIT:-128}"
+    tmpfs:
+      - /data
+      - /tmp
+    environment:
+      HOME: /tmp
+    ports:
+      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-2003}:${CONTAINER_PORT:-2003}"
+    restart: "no"

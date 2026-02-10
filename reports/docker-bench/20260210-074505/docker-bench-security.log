@@ -1,4 +1,4 @@
-Initializing 2026-02-09T14:21:53
+Initializing 2026-02-10T07:45:07
 
 
 Section A - Check results
@@ -123,13 +123,10 @@ Section A - Check results
 [WARN] 5.8 - Ensure that only needed ports are open on the container (Manual)
 [WARN]      * Port in use: 2003 in unoserver-docker-debug
 [PASS] 5.9 - Ensure that the host's network namespace is not shared (Automated)
-[WARN] 5.10 - Ensure that the memory usage for containers is limited (Automated)
-[WARN]       * Container running without memory restrictions: unoserver-docker-debug
-[WARN] 5.11 - Ensure that CPU priority is set appropriately on containers (Automated)
-[WARN]       * Container running without CPU restrictions: unoserver-docker-debug
+[PASS] 5.10 - Ensure that the memory usage for containers is limited (Automated)
+[PASS] 5.11 - Ensure that CPU priority is set appropriately on containers (Automated)
 [PASS] 5.12 - Ensure that the container's root filesystem is mounted as read only (Automated)
-[WARN] 5.13 - Ensure that incoming container traffic is bound to a specific host interface (Automated)
-[WARN]       * Port being bound to wildcard IP: 0.0.0.0 in unoserver-docker-debug
+[PASS] 5.13 - Ensure that incoming container traffic is bound to a specific host interface (Automated)
 [WARN] 5.14 - Ensure that the 'on-failure' container restart policy is set to '5' (Automated)
 [WARN]       * MaximumRetryCount is not set to 5: unoserver-docker-debug
 [PASS] 5.15 - Ensure that the host's process namespace is not shared (Automated)
@@ -146,8 +143,7 @@ Section A - Check results
 [PASS] 5.25 - Ensure that the container is restricted from acquiring additional privileges (Automated)
 [PASS] 5.26 - Ensure that container health is checked at runtime (Automated)
 [INFO] 5.27 - Ensure that Docker commands always make use of the latest version of their image (Manual)
-[WARN] 5.28 - Ensure that the PIDs cgroup limit is used (Automated)
-[WARN]       * PIDs limit not set: unoserver-docker-debug
+[PASS] 5.28 - Ensure that the PIDs cgroup limit is used (Automated)
 [INFO] 5.29 - Ensure that Docker's default bridge 'docker0' is not used (Manual)
 [INFO]       * Container in docker0 network: unoserver-docker-debug
 [PASS] 5.30 - Ensure that the host's user namespaces are not shared (Automated)
@@ -175,5 +171,5 @@ Section A - Check results
 Section C - Score
 
 [INFO] Checks: 117
-[INFO] Score: 17
+[INFO] Score: 25
 

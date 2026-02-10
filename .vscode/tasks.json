@@ -26,7 +26,12 @@
       "dependsOn": "build unoserver-docker",
       "command": "${workspaceFolder}/scripts/unoserver/run-debug.sh",
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "CPU_LIMIT": "2",
+          "MEMORY_LIMIT": "1g",
+          "PIDS_LIMIT": "128"
+        }
       },
       "presentation": {
         "reveal": "always",

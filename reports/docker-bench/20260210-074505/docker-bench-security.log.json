@@ -1,6 +1,6 @@
 {
   "dockerbenchsecurity": "1.6.0",
-  "start": 1770646913,
+  "start": 1770709507,
   "tests": [
     {
       "id": "1",
@@ -479,20 +479,12 @@
         {
           "id": "5.10",
           "desc": "Ensure that the memory usage for containers is limited (Automated)",
-          "result": "WARN",
-          "details": "Container running without memory restrictions:  unoserver-docker-debug",
-          "items": [
-            "unoserver-docker-debug"
-          ]
+          "result": "PASS"
         },
         {
           "id": "5.11",
           "desc": "Ensure that CPU priority is set appropriately on containers (Automated)",
-          "result": "WARN",
-          "details": "Containers running without CPU restrictions:  unoserver-docker-debug",
-          "items": [
-            "unoserver-docker-debug"
-          ]
+          "result": "PASS"
         },
         {
           "id": "5.12",
@@ -502,11 +494,7 @@
         {
           "id": "5.13",
           "desc": "Ensure that incoming container traffic is bound to a specific host interface (Automated)",
-          "result": "WARN",
-          "details": "Containers with port bound to wildcard IP:  unoserver-docker-debug:0.0.0.0",
-          "items": [
-            "unoserver-docker-debug:0.0.0.0"
-          ]
+          "result": "PASS"
         },
         {
           "id": "5.14",
@@ -589,19 +577,15 @@
         {
           "id": "5.28",
           "desc": "Ensure that the PIDs cgroup limit is used (Automated)",
-          "result": "WARN",
-          "details": "Containers without PIDs cgroup limit:  unoserver-docker-debug",
-          "items": [
-            "unoserver-docker-debug"
-          ]
+          "result": "PASS"
         },
         {
           "id": "5.29",
           "desc": "Ensure that Docker's default bridge 'docker0' is not used (Manual)",
           "result": "INFO",
-          "details": "Containers using docker0 network:  955a968a4e72003e1a8416f46e73ee4ad30d38289ec7450ce577124af2e906f7:unoserver-docker-debug",
+          "details": "Containers using docker0 network:  1e1891de7a2023a7f5065b52edd0190b7ceec3e980df5e6a743052faf20a68b0:unoserver-docker-debug",
           "items": [
-            "955a968a4e72003e1a8416f46e73ee4ad30d38289ec7450ce577124af2e906f7:unoserver-docker-debug"
+            "1e1891de7a2023a7f5065b52edd0190b7ceec3e980df5e6a743052faf20a68b0:unoserver-docker-debug"
           ]
         },
         {
@@ -692,6 +676,6 @@
     }
   ],
   "checks": 117,
-  "score": 17,
-  "end": 1770646920
+  "score": 25,
+  "end": 1770709513
 }
