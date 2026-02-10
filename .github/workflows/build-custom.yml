@@ -1,0 +1,57 @@
+name: Build custom image
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - custom
+  pull_request:
+    branches:
+      - custom
+
+jobs:
+  build-and-scan:
+    if: ${{ github.event_name != 'workflow_dispatch' || github.ref_name == 'custom' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5.0.0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.11.1
+
+      - name: Compute local image tag
+        run: |
+          platform_tag="${{ matrix.platform }}"
+          platform_tag="${platform_tag//\//-}"
+          echo "IMAGE_REF=local/unoserver-custom:${platform_tag}-${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          load: true
+          push: false
+          tags: ${{ env.IMAGE_REF }}
+
+      - name: Scan image with Trivy (fail on HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ${{ env.IMAGE_REF }}
+          format: table
+          exit-code: '1'
+          severity: HIGH,CRITICAL
+          vuln-type: os,library

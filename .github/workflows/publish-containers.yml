@@ -1,9 +1,12 @@
-name: Publish container image to GHCR
+name: Publish container image to GHCR (disabled in fork)
 
 on:
-  release:
-    types:
-      - created
+  workflow_dispatch:
+    inputs:
+      enable_upstream_workflow:
+        description: "Set to true to run this upstream-derived workflow manually"
+        required: true
+        default: "false"
 
 env:
   REGISTRY: ghcr.io
@@ -11,6 +14,7 @@ env:
 
 jobs:
   build-and-push:
+    if: ${{ github.event.inputs.enable_upstream_workflow == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
