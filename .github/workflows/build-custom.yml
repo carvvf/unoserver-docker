@@ -1,17 +1,11 @@
 name: Build custom image
+run-name: Build custom image
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - custom
-  pull_request:
-    branches:
-      - custom
 
 jobs:
   build-and-scan:
-    if: ${{ github.event_name != 'workflow_dispatch' || github.ref_name == 'custom' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
