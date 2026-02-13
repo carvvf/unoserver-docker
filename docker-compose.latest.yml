@@ -2,7 +2,7 @@ services:
   unoserver:
     #image: "${IMAGE_REF:-unoserver-docker:local}"
     image: "${IMAGE_REF:-ghcr.io/carvvf/unoserver-docker:latest}"
-    container_name: "${CONTAINER_NAME:-unoserver-docker-debug}"
+    container_name: "${CONTAINER_NAME:-unoserver-docker}"
     network_mode: "${DOCKER_NETWORK:-bridge}"
     security_opt:
       - no-new-privileges:true
@@ -19,4 +19,4 @@ services:
       HOME: /tmp
     ports:
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-2003}:${CONTAINER_PORT:-2003}"
-    restart: "no"
+    restart: unless-stopped
