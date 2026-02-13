@@ -1,6 +1,7 @@
 services:
   unoserver:
-    image: "${IMAGE_REF:-unoserver-docker:local}"
+    #image: "${IMAGE_REF:-unoserver-docker:local}"
+    image: "${IMAGE_REF:-ghcr.io/carvvf/unoserver-docker:latest}"
     container_name: "${CONTAINER_NAME:-unoserver-docker-debug}"
     network_mode: "${DOCKER_NETWORK:-bridge}"
     security_opt:

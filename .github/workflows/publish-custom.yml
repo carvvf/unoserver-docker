@@ -172,7 +172,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image to GHCR (version tag only)
+      - name: Build and push image to GHCR (version + latest tags)
         uses: docker/build-push-action@v6.18.0
         with:
           context: .
@@ -180,16 +180,19 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-      - name: Inspect pushed image
+      - name: Inspect pushed images
         run: |
           docker buildx imagetools inspect \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
       - name: Publish summary
         run: |
           {
             echo "## Publish Result"
             echo "- Published image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}"
-            echo "- Latest tag: not published"
+            echo "- Latest tag: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
           } >> "$GITHUB_STEP_SUMMARY"

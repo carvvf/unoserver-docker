@@ -15,24 +15,24 @@ DOCKER_PID=""
 
 check_already_running() {
   if docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
-    echo "[run-debug] Container already running: ${CONTAINER_NAME}" >&2
-    echo "[run-debug] Use the task 'debug: spawn a shell' or stop it first." >&2
+    echo "[run-local] Container already running: ${CONTAINER_NAME}" >&2
+    echo "[run-local] Use the task 'debug: spawn a shell' or stop it first." >&2
     exit 1
   fi
 
   mapfile -t running_from_image < <(docker ps --filter "ancestor=${IMAGE_REF}" --format '{{.Names}}')
   if [[ ${#running_from_image[@]} -gt 0 ]]; then
-    echo "[run-debug] A container from ${IMAGE_REF} is already running:" >&2
+    echo "[run-local] A container from ${IMAGE_REF} is already running:" >&2
     printf '  - %s\n' "${running_from_image[@]}" >&2
-    echo "[run-debug] Stop it before starting another debug run." >&2
+    echo "[run-local] Stop it before starting another debug run." >&2
     exit 1
   fi
 }
 
 check_network_exists() {
   if ! docker network inspect "${DOCKER_NETWORK}" >/dev/null 2>&1; then
-    echo "[run-debug] Docker network not found: ${DOCKER_NETWORK}" >&2
-    echo "[run-debug] Create it first or set DOCKER_NETWORK to an existing network." >&2
+    echo "[run-local] Docker network not found: ${DOCKER_NETWORK}" >&2
+    echo "[run-local] Create it first or set DOCKER_NETWORK to an existing network." >&2
     exit 2
   fi
 }
@@ -55,11 +55,11 @@ trap on_signal INT TERM HUP
 check_already_running
 check_network_exists
 
-echo "[run-debug] Starting ${CONTAINER_NAME} from ${IMAGE_REF}"
-echo "[run-debug] Network: ${DOCKER_NETWORK}"
-echo "[run-debug] Bind: ${HOST_BIND_ADDRESS}:${HOST_PORT}->${CONTAINER_PORT}/tcp"
-echo "[run-debug] Limits: cpus=${CPU_LIMIT}, memory=${MEMORY_LIMIT}, pids=${PIDS_LIMIT}"
-echo "[run-debug] Press Ctrl+C to stop and remove the container cleanly."
+echo "[run-local] Starting ${CONTAINER_NAME} from ${IMAGE_REF}"
+echo "[run-local] Network: ${DOCKER_NETWORK}"
+echo "[run-local] Bind: ${HOST_BIND_ADDRESS}:${HOST_PORT}->${CONTAINER_PORT}/tcp"
+echo "[run-local] Limits: cpus=${CPU_LIMIT}, memory=${MEMORY_LIMIT}, pids=${PIDS_LIMIT}"
+echo "[run-local] Press Ctrl+C to stop and remove the container cleanly."
 
 docker run \
   --name "${CONTAINER_NAME}" \
