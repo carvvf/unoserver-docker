@@ -3,7 +3,6 @@ services:
     #image: "${IMAGE_REF:-unoserver-docker:local}"
     image: "${IMAGE_REF:-ghcr.io/carvvf/unoserver-docker:latest}"
     container_name: "${CONTAINER_NAME:-unoserver-docker}"
-    network_mode: "${DOCKER_NETWORK:-bridge}"
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -17,6 +16,16 @@ services:
       - /tmp
     environment:
       HOME: /tmp
+    # Development-only host exposure (loopback only).
+    # In production, comment out this block to disable host access.
     ports:
       - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-2003}:${CONTAINER_PORT:-2003}"
+    # Internal Docker network for service-to-service communication.
+    networks:
+      - unoserver-docker-net
     restart: unless-stopped
+
+networks:
+  unoserver-docker-net:
+    name: unoserver-docker-net
+    driver: bridge
