@@ -73,7 +73,13 @@
       "type": "shell",
       "command": "${workspaceFolder}/scripts/trivy/scan-image.sh",
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "REPO_TARGET": "${workspaceFolder}",
+          "DOCKERFILE_PATH": "${workspaceFolder}/Dockerfile",
+          "IMAGE_FILTER": "*unoserver-docker*",
+          "SEVERITY": "MEDIUM,HIGH,CRITICAL"
+        }
       },
       "presentation": {
         "reveal": "always",
