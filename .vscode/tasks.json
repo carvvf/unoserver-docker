@@ -24,7 +24,7 @@
       "label": "debug: run unoserver-docker",
       "type": "shell",
       "dependsOn": "build unoserver-docker",
-      "command": "${workspaceFolder}/scripts/unoserver/run-debug.sh",
+      "command": "${workspaceFolder}/scripts/unoserver/run-local.sh",
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {
@@ -43,7 +43,7 @@
     {
       "label": "debug: stop unoserver-docker",
       "type": "shell",
-      "command": "${workspaceFolder}/scripts/unoserver/stop-debug.sh",
+      "command": "${workspaceFolder}/scripts/unoserver/stop-local.sh",
       "options": {
         "cwd": "${workspaceFolder}"
       },

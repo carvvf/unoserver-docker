@@ -26,61 +26,15 @@ jobs:
           echo "Forced failure for notification testing." >&2
           exit 1
 
-      - name: Resolve most recent GHCR image tag
+      - name: Resolve GHCR latest image tag
         id: target
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
           owner="${GITHUB_REPOSITORY_OWNER}"
           owner_lc="$(printf '%s' "${owner}" | tr '[:upper:]' '[:lower:]')"
           package_name="${GITHUB_REPOSITORY#*/}"
-
-          owner_type="$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}" \
-            | jq -r '.owner.type')"
-
-          case "${owner_type}" in
-            Organization)
-              versions_url="https://api.github.com/orgs/${owner}/packages/container/${package_name}/versions?per_page=100"
-              ;;
-            User)
-              versions_url="https://api.github.com/users/${owner}/packages/container/${package_name}/versions?per_page=100"
-              ;;
-            *)
-              echo "Unsupported owner type: ${owner_type}" >&2
-              exit 1
-              ;;
-          esac
-
-          tag="$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${versions_url}" \
-            | jq -r '
-                [ .[]
-                  | {
-                      created_at,
-                      tags: (
-                        (.metadata.container.tags // [])
-                        | map(select(startswith("sha256-") | not))
-                      )
-                    }
-                  | select((.tags | length) > 0)
-                ]
-                | sort_by(.created_at)
-                | reverse
-                | (.[0].tags[0] // empty)
-              ' )"
-
-          if [ -z "${tag}" ]; then
-            echo "No scannable GHCR tag found for ${owner}/${package_name}." >&2
-            exit 1
-          fi
-
+          tag="latest"
           image_ref="ghcr.io/${owner_lc}/${package_name}:${tag}"
 
           echo "tag=${tag}" >> "$GITHUB_OUTPUT"
