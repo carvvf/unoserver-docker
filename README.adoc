@@ -2,6 +2,8 @@
 
 = Unoserver Container Image
 
+image:https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml/badge.svg?branch=custom["Weekly Trivy scan status",link="https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml"]
+
 Container image for unoserver
 
 == The environment
