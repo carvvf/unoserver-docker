@@ -16,8 +16,11 @@ permissions:
   packages: read
 
 jobs:
-  scan:
+  initial_scan:
     runs-on: ubuntu-latest
+    outputs:
+      image_ref: ${{ steps.target.outputs.image_ref }}
+      has_findings: ${{ steps.summary.outputs.has_findings }}
 
     steps:
       - name: Force failure (manual test)
@@ -41,31 +44,31 @@ jobs:
           echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"
 
           {
-            echo "## Scan Target"
+            echo "## Initial Scan Target"
             echo "- Image: ${image_ref}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Scan image with Trivy
+      - name: Initial scan with Trivy
         uses: aquasecurity/trivy-action@0.30.0
         with:
           image-ref: ${{ steps.target.outputs.image_ref }}
           format: json
-          output: trivy-report.json
+          output: trivy-report-initial.json
           severity: HIGH,CRITICAL
           vuln-type: os,library
 
-      - name: Summarize vulnerabilities
+      - name: Summarize initial vulnerabilities
         id: summary
         run: |
           set -euo pipefail
 
-          if [ ! -f trivy-report.json ]; then
+          if [ ! -f trivy-report-initial.json ]; then
             echo "Trivy report not found." >&2
             exit 1
           fi
 
-          critical_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report.json)"
-          high_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report.json)"
+          critical_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report-initial.json)"
+          high_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report-initial.json)"
 
           has_findings="false"
           if [ "${critical_count}" -gt 0 ] || [ "${high_count}" -gt 0 ]; then
@@ -77,23 +80,98 @@ jobs:
           echo "has_findings=${has_findings}" >> "$GITHUB_OUTPUT"
 
           {
-            echo "## Trivy Result"
+            echo "## Initial Trivy Result"
             echo "- Image: ${{ steps.target.outputs.image_ref }}"
+            echo "- CRITICAL: ${critical_count}"
+            echo "- HIGH: ${high_count}"
+            echo "- Trigger publish-custom: ${has_findings}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload initial Trivy report artifact
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: trivy-initial-${{ github.run_id }}
+          path: trivy-report-initial.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  publish_if_needed:
+    if: ${{ needs.initial_scan.outputs.has_findings == 'true' }}
+    needs: initial_scan
+    uses: ./.github/workflows/publish-custom.yml
+    permissions:
+      contents: read
+      packages: write
+    secrets: inherit
+
+  final_scan:
+    needs:
+      - initial_scan
+      - publish_if_needed
+    if: >-
+      ${{
+        always() &&
+        (
+          needs.initial_scan.outputs.has_findings == 'false' ||
+          (
+            needs.initial_scan.outputs.has_findings == 'true' &&
+            needs.publish_if_needed.result == 'success'
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Final scan with Trivy
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: ${{ needs.initial_scan.outputs.image_ref }}
+          format: json
+          output: trivy-report-final.json
+          severity: HIGH,CRITICAL
+          vuln-type: os,library
+
+      - name: Summarize final vulnerabilities
+        id: summary
+        run: |
+          set -euo pipefail
+
+          if [ ! -f trivy-report-final.json ]; then
+            echo "Trivy report not found." >&2
+            exit 1
+          fi
+
+          critical_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report-final.json)"
+          high_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report-final.json)"
+
+          has_findings="false"
+          if [ "${critical_count}" -gt 0 ] || [ "${high_count}" -gt 0 ]; then
+            has_findings="true"
+          fi
+
+          echo "critical_count=${critical_count}" >> "$GITHUB_OUTPUT"
+          echo "high_count=${high_count}" >> "$GITHUB_OUTPUT"
+          echo "has_findings=${has_findings}" >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Final Trivy Result"
+            echo "- Image: ${{ needs.initial_scan.outputs.image_ref }}"
             echo "- CRITICAL: ${critical_count}"
             echo "- HIGH: ${high_count}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload Trivy report artifact
+      - name: Upload final Trivy report artifact
         if: always()
         uses: actions/upload-artifact@v4.6.2
         with:
-          name: trivy-report-${{ github.run_id }}
-          path: trivy-report.json
+          name: trivy-final-${{ github.run_id }}
+          path: trivy-report-final.json
           if-no-files-found: ignore
           retention-days: 14
 
       - name: Fail workflow on HIGH/CRITICAL findings
         if: ${{ steps.summary.outputs.has_findings == 'true' }}
         run: |
-          echo "HIGH/CRITICAL vulnerabilities detected." >&2
+          echo "HIGH/CRITICAL vulnerabilities detected after final scan." >&2
           exit 1

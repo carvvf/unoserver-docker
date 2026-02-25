@@ -3,6 +3,17 @@ run-name: Build custom image
 
 on:
   workflow_dispatch:
+    inputs:
+      image_tag_suffix:
+        description: "Optional suffix for local image tags used during build/scan"
+        required: false
+        default: ""
+  workflow_call:
+    inputs:
+      image_tag_suffix:
+        description: "Optional suffix for local image tags used during build/scan"
+        required: false
+        type: string
 
 jobs:
   build-and-scan:
@@ -28,9 +39,14 @@ jobs:
 
       - name: Compute local image tag
         run: |
+          tag_suffix="${{ inputs.image_tag_suffix }}"
+          if [ -z "${tag_suffix}" ]; then
+            tag_suffix="${GITHUB_SHA}"
+          fi
           platform_tag="${{ matrix.platform }}"
           platform_tag="${platform_tag//\//-}"
-          echo "IMAGE_REF=local/unoserver-custom:${platform_tag}-${GITHUB_SHA}" >> "$GITHUB_ENV"
+          echo "PLATFORM_TAG=${platform_tag}" >> "$GITHUB_ENV"
+          echo "IMAGE_REF=local/unoserver-custom:${platform_tag}-${tag_suffix}" >> "$GITHUB_ENV"
 
       - name: Build image (no push)
         uses: docker/build-push-action@v6.18.0
@@ -40,6 +56,10 @@ jobs:
           load: true
           push: false
           tags: ${{ env.IMAGE_REF }}
+          cache-from: |
+            type=gha,scope=build-custom-${{ env.PLATFORM_TAG }}
+          cache-to: |
+            type=gha,mode=max,scope=build-custom-${{ env.PLATFORM_TAG }}
 
       - name: Scan image with Trivy (fail on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@0.30.0
@@ -49,3 +69,62 @@ jobs:
           exit-code: '1'
           severity: HIGH,CRITICAL
           vuln-type: os,library
+
+      - name: Install pytest (amd64 integration run)
+        if: matrix.platform == 'linux/amd64'
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Start container for pytest integration test (amd64)
+        if: matrix.platform == 'linux/amd64'
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name unoserver-docker-debug \
+            -p 2003:2003 \
+            "${IMAGE_REF}"
+
+      - name: Wait for XML-RPC endpoint readiness (amd64)
+        if: matrix.platform == 'linux/amd64'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          import time
+          import xmlrpc.client
+
+          url = "http://127.0.0.1:2003"
+          last_error = None
+
+          for _ in range(60):
+              try:
+                  info = xmlrpc.client.ServerProxy(url, allow_none=True).info()
+                  if isinstance(info, dict):
+                      print(f"Endpoint ready: {info}")
+                      sys.exit(0)
+                  last_error = f"unexpected info() response type: {type(info)!r}"
+              except Exception as exc:  # noqa: BLE001
+                  last_error = str(exc)
+              time.sleep(2)
+
+          print(f"Endpoint did not become ready in time: {last_error}", file=sys.stderr)
+          sys.exit(1)
+          PY
+
+      - name: Run fixture conversion pytest (amd64)
+        if: matrix.platform == 'linux/amd64'
+        env:
+          CONTAINER_NAME: unoserver-docker-debug
+          CONTAINER_PORT: '2003'
+          API_PROTOCOL: http
+        run: |
+          python3 -m pytest -q tests/pytest_office_fixtures_to_pdf.py
+
+      - name: Show container logs on failure (amd64)
+        if: failure() && matrix.platform == 'linux/amd64'
+        run: docker logs --tail 200 unoserver-docker-debug || true
+
+      - name: Cleanup integration container (amd64)
+        if: always() && matrix.platform == 'linux/amd64'
+        run: docker rm -f unoserver-docker-debug || true
