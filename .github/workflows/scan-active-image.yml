@@ -1,4 +1,4 @@
-name: Weekly Trivy scan for active GHCR image
+name: Active GHCR image status
 run-name: Weekly Trivy scan
 
 on:

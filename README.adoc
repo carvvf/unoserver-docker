@@ -1,8 +1,11 @@
+
+image:https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml/badge.svg?branch=custom["Weekly Trivy scan status",link="https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml"]
+
+NOTE: The information below refers to the upstream `unoconv/unoserver-docker` repository and may not fully reflect this fork.
+
 *The project is looking for a new maintainer. If you are interested then please write in the following issue: https://github.com/unoconv/unoserver-docker/issues/97*
 
 = Unoserver Container Image
-
-image:https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml/badge.svg?branch=custom["Weekly Trivy scan status",link="https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml"]
 
 Container image for unoserver
 
