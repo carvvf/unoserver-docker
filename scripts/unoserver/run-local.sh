@@ -2,7 +2,7 @@
 set -euo pipefail
 
 IMAGE_REF="${IMAGE_REF:-unoserver-docker:local}"
-CONTAINER_NAME="${CONTAINER_NAME:-unoserver-docker-debug}"
+CONTAINER_NAME="${CONTAINER_NAME:-unoserver-docker-local}"
 HOST_BIND_ADDRESS="${HOST_BIND_ADDRESS:-127.0.0.1}"
 HOST_PORT="${HOST_PORT:-2003}"
 CONTAINER_PORT="${CONTAINER_PORT:-2003}"
@@ -16,7 +16,7 @@ DOCKER_PID=""
 check_already_running() {
   if docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
     echo "[run-local] Container already running: ${CONTAINER_NAME}" >&2
-    echo "[run-local] Use the task 'debug: spawn a shell' or stop it first." >&2
+    echo "[run-local] Use the task 'local: spawn a shell' or stop it first." >&2
     exit 1
   fi
 
@@ -24,7 +24,7 @@ check_already_running() {
   if [[ ${#running_from_image[@]} -gt 0 ]]; then
     echo "[run-local] A container from ${IMAGE_REF} is already running:" >&2
     printf '  - %s\n' "${running_from_image[@]}" >&2
-    echo "[run-local] Stop it before starting another debug run." >&2
+    echo "[run-local] Stop it before starting another local run." >&2
     exit 1
   fi
 }

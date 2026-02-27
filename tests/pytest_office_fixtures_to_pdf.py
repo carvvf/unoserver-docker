@@ -42,7 +42,7 @@ def _collect_supported_files(fixtures_dir: Path) -> list[Path]:
 
 
 def _resolve_endpoint() -> str:
-    container_name = os.getenv("CONTAINER_NAME", "unoserver-docker-debug")
+    container_name = os.getenv("CONTAINER_NAME", "unoserver-docker-local")
     container_port = os.getenv("CONTAINER_PORT", "2003")
     protocol = os.getenv("API_PROTOCOL", "http")
 

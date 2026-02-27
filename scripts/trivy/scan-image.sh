@@ -5,12 +5,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 REPO_TARGET="${REPO_TARGET:-${REPO_ROOT}}"
-DOCKERFILE_PATH="${DOCKERFILE_PATH:-${REPO_ROOT}/Dockerfile}"
+DOCKERFILE_PATH="${DOCKERFILE_PATH:-${REPO_ROOT}/Dockerfile.custom}"
 IMAGE_FILTER="${IMAGE_FILTER:-*unoserver-docker*}"
+IMAGE_LABEL_SELECTOR="${IMAGE_LABEL_SELECTOR:-org.opencontainers.image.title=unoserver-docker}"
 IMAGE_REF="${IMAGE_REF:-}"
-SEVERITY="${SEVERITY:-MEDIUM,HIGH,CRITICAL}"
+SEVERITY="${SEVERITY:-UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL}"
+FAIL_SEVERITY="${FAIL_SEVERITY:-HIGH,CRITICAL}"
 REPORTS_DIR="${REPORTS_DIR:-${REPO_ROOT}/reports/trivy}"
 FS_SKIP_DIRS="${FS_SKIP_DIRS:-${REPORTS_DIR}}"
+TRIVY_CLEAN_ARGS="${TRIVY_CLEAN_ARGS:---scan-cache}"
 
 mkdir -p "${REPORTS_DIR}"
 ts="$(date -u +%Y%m%d-%H%M%S)"
@@ -35,19 +38,24 @@ run_scan() {
 
   local text_report="${base}.${name}.txt"
   local json_report="${base}.${name}.json"
-  local scan_status
+  local scan_status=0
 
   echo "[trivy-task] Running ${mode} scan for ${name}" >&2
 
-  set +e
-  trivy "${mode}" --severity "${SEVERITY}" --exit-code 1 "$@" | tee "${text_report}"
-  scan_status=${PIPESTATUS[0]}
-  set -e
-
-  if ! trivy "${mode}" --severity "${SEVERITY}" --format json --output "${json_report}" "$@"; then
-    echo "[trivy-task] JSON report generation failed for ${name} (gate status=${scan_status})" >&2
+  if ! trivy "${mode}" --severity "${SEVERITY}" "$@" | tee "${text_report}"; then
+    echo "[trivy-task] Text report generation failed for ${name}" >&2
     return 2
   fi
+
+  if ! trivy "${mode}" --severity "${SEVERITY}" --format json --output "${json_report}" "$@"; then
+    echo "[trivy-task] JSON report generation failed for ${name}" >&2
+    return 2
+  fi
+
+  set +e
+  trivy "${mode}" --severity "${FAIL_SEVERITY}" --exit-code 1 --quiet "$@" >/dev/null
+  scan_status=$?
+  set -e
 
   return "${scan_status}"
 }
@@ -56,6 +64,14 @@ overall_status=0
 
 if [[ ! -f "${DOCKERFILE_PATH}" ]]; then
   echo "[trivy-task] Dockerfile not found: ${DOCKERFILE_PATH}" >&2
+  exit 2
+fi
+
+echo "[trivy-task] Cleaning Trivy cache (${TRIVY_CLEAN_ARGS})" >&2
+declare -a trivy_clean_args=()
+IFS=' ' read -r -a trivy_clean_args <<< "${TRIVY_CLEAN_ARGS}"
+if ! trivy clean "${trivy_clean_args[@]}"; then
+  echo "[trivy-task] Cache cleanup failed" >&2
   exit 2
 fi
 
@@ -80,19 +96,34 @@ else
 fi
 
 declare -a image_refs=()
+declare -a discovered_image_refs=()
 
 if [[ -n "${IMAGE_REF}" ]]; then
   image_refs=("${IMAGE_REF}")
 else
-  while IFS= read -r ref; do
-    if [[ "${ref}" == ${IMAGE_FILTER} ]]; then
-      image_refs+=("${ref}")
-    fi
-  done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | sort -u)
+  if [[ -n "${IMAGE_LABEL_SELECTOR}" ]]; then
+    while IFS= read -r image_id; do
+      if [[ -n "${image_id}" ]]; then
+        discovered_image_refs+=("${image_id}")
+      fi
+    done < <(docker image ls --filter "label=${IMAGE_LABEL_SELECTOR}" --format '{{.ID}}' | sort -u)
+  fi
+
+  if [[ -n "${IMAGE_FILTER}" ]]; then
+    while IFS= read -r ref; do
+      if [[ "${ref}" == ${IMAGE_FILTER} ]] && [[ "${ref}" != "<none>:<none>" ]]; then
+        discovered_image_refs+=("${ref}")
+      fi
+    done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' | sort -u)
+  fi
+
+  if [[ ${#discovered_image_refs[@]} -gt 0 ]]; then
+    mapfile -t image_refs < <(printf '%s\n' "${discovered_image_refs[@]}" | awk 'NF' | sort -u)
+  fi
 fi
 
 if [[ ${#image_refs[@]} -eq 0 ]]; then
-  echo "[trivy-task] No local images match filter: ${IMAGE_FILTER}" >&2
+  echo "[trivy-task] No local images match selectors: IMAGE_LABEL_SELECTOR='${IMAGE_LABEL_SELECTOR}', IMAGE_FILTER='${IMAGE_FILTER}'" >&2
   exit 2
 fi
 

@@ -7,6 +7,8 @@
       "command": "docker",
       "args": [
         "build",
+        "-f",
+        "${workspaceFolder}/Dockerfile.custom",
         "-t",
         "unoserver-docker:local",
         "."
@@ -21,7 +23,7 @@
       "problemMatcher": []
     },
     {
-      "label": "debug: run unoserver-docker",
+      "label": "local: run unoserver-docker",
       "type": "shell",
       "dependsOn": "build unoserver-docker",
       "command": "${workspaceFolder}/scripts/unoserver/run-local.sh",
@@ -41,7 +43,7 @@
       "problemMatcher": []
     },
     {
-      "label": "debug: stop unoserver-docker",
+      "label": "local: stop unoserver-docker",
       "type": "shell",
       "command": "${workspaceFolder}/scripts/unoserver/stop-local.sh",
       "options": {
@@ -55,7 +57,7 @@
       "problemMatcher": []
     },
     {
-      "label": "debug: spawn a shell",
+      "label": "local: spawn a shell",
       "type": "shell",
       "command": "${workspaceFolder}/scripts/unoserver/spawn-shell.sh",
       "options": {
@@ -76,9 +78,12 @@
         "cwd": "${workspaceFolder}",
         "env": {
           "REPO_TARGET": "${workspaceFolder}",
-          "DOCKERFILE_PATH": "${workspaceFolder}/Dockerfile",
+          "DOCKERFILE_PATH": "${workspaceFolder}/Dockerfile.custom",
+          "IMAGE_LABEL_SELECTOR": "org.opencontainers.image.title=unoserver-docker",
           "IMAGE_FILTER": "*unoserver-docker*",
-          "SEVERITY": "MEDIUM,HIGH,CRITICAL"
+          "SEVERITY": "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+          "FAIL_SEVERITY": "HIGH,CRITICAL",
+          "TRIVY_CLEAN_ARGS": "--scan-cache"
         }
       },
       "presentation": {
@@ -93,7 +98,12 @@
       "type": "shell",
       "command": "${workspaceFolder}/tests/test-office-fixtures-to-pdf.sh",
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "API_PROTOCOL": "http",
+          "ENDPOINT_HOST": "127.0.0.1",
+          "ENDPOINT_PORT": "2003"
+        }
       },
       "presentation": {
         "reveal": "always",
@@ -109,7 +119,7 @@
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {
-          "DOCKER_BENCH_ARGS": "-i unoserver-docker"
+          "DOCKER_BENCH_ARGS": "-t org.opencontainers.image.title=unoserver-docker -i unoserver-docker"
         }
       },
       "presentation": {
@@ -126,7 +136,7 @@
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {
-          "DOCKER_BENCH_ARGS": "-c container_runtime,container_images -i unoserver-docker"
+          "DOCKER_BENCH_ARGS": "-c container_runtime,container_images -t org.opencontainers.image.title=unoserver-docker -i unoserver-docker"
         }
       },
       "presentation": {

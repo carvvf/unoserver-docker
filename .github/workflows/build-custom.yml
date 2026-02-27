@@ -52,6 +52,7 @@ jobs:
         uses: docker/build-push-action@v6.18.0
         with:
           context: .
+          file: ./Dockerfile.custom
           platforms: ${{ matrix.platform }}
           load: true
           push: false
@@ -81,7 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           docker run -d \
-            --name unoserver-docker-debug \
+            --name unoserver-docker-local \
             -p 2003:2003 \
             "${IMAGE_REF}"
 
@@ -115,7 +116,7 @@ jobs:
       - name: Run fixture conversion pytest (amd64)
         if: matrix.platform == 'linux/amd64'
         env:
-          CONTAINER_NAME: unoserver-docker-debug
+          CONTAINER_NAME: unoserver-docker-local
           CONTAINER_PORT: '2003'
           API_PROTOCOL: http
         run: |
@@ -123,8 +124,8 @@ jobs:
 
       - name: Show container logs on failure (amd64)
         if: failure() && matrix.platform == 'linux/amd64'
-        run: docker logs --tail 200 unoserver-docker-debug || true
+        run: docker logs --tail 200 unoserver-docker-local || true
 
       - name: Cleanup integration container (amd64)
         if: always() && matrix.platform == 'linux/amd64'
-        run: docker rm -f unoserver-docker-debug || true
+        run: docker rm -f unoserver-docker-local || true

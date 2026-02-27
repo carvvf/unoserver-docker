@@ -1,4 +1,4 @@
-FROM eclipse-temurin:24.0.1_9-jdk-alpine-3.21
+FROM eclipse-temurin:25.0.2_10-jdk-alpine-3.21
 
 ARG BUILD_CONTEXT="build-context"
 ARG UID=worker
@@ -17,14 +17,13 @@ WORKDIR /
 
 RUN addgroup -S ${GID} && adduser -S ${UID} -G ${GID}
 
-RUN apk add --no-cache \
+RUN apk upgrade --no-cache && \
+    apk add --no-cache \
     bash curl \
     py3-pip \
     libreoffice \
-    supervisor
-
-# fonts - https://wiki.alpinelinux.org/wiki/Fonts
-RUN apk add --no-cache \
+    supervisor \
+    # fonts - https://wiki.alpinelinux.org/wiki/Fonts
     font-noto font-noto-cjk font-noto-extra \
     terminus-font \
     ttf-font-awesome \
@@ -36,12 +35,14 @@ RUN apk add --no-cache \
     ttf-mononoki  \
     ttf-opensans   \
     fontconfig && \
-    fc-cache -f
-
-RUN rm -rf /var/cache/apk/* /tmp/*
+    fc-cache -f && \
+    rm -rf /tmp/*
 
 # https://github.com/unoconv/unoserver/
-RUN pip install --break-system-packages -U unoserver==${VERSION_UNOSERVER}
+RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade \
+      pip && \
+    python3 -m pip install --break-system-packages --no-cache-dir --upgrade \
+      unoserver==${VERSION_UNOSERVER}
 
 # setup supervisor
 COPY --chown=${UID}:${GID} ${BUILD_CONTEXT} /
@@ -56,6 +57,7 @@ USER ${UID}
 WORKDIR /home/worker
 ENV HOME="/home/worker"
 
-VOLUME ["/data"]
 EXPOSE 2003
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD netstat -tln | grep -q ':2003' || exit 1
 ENTRYPOINT ["/entrypoint.sh"]

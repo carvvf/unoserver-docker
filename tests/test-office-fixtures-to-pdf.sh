@@ -4,8 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-CONTAINER_NAME="${CONTAINER_NAME:-unoserver-docker-debug}"
+CONTAINER_NAME="${CONTAINER_NAME:-}"
 CONTAINER_PORT="${CONTAINER_PORT:-2003}"
+ENDPOINT_HOST="${ENDPOINT_HOST:-127.0.0.1}"
+ENDPOINT_PORT="${ENDPOINT_PORT:-${CONTAINER_PORT}}"
 API_PROTOCOL="${API_PROTOCOL:-http}"
 OUT_DIR="${OUT_DIR:-${REPO_ROOT}/tests/out}"
 OFFICE_FIXTURES_DIR="${OFFICE_FIXTURES_DIR:-${FIXTURES_DIR:-${REPO_ROOT}/fixtures/office}}"
@@ -32,37 +34,39 @@ for set_spec in "${FIXTURE_SETS[@]}"; do
   fi
 done
 
-if ! docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
-  echo "[tests] Required running container not found: ${CONTAINER_NAME}" >&2
-  echo "[tests] Start it first (e.g. VS Code task: debug: run unoserver-docker)." >&2
-  echo "[tests] This test does not start or modify containers; it only validates a live endpoint." >&2
-  exit 5
-fi
-
-mapfile -t PORT_BINDINGS < <(docker port "${CONTAINER_NAME}" "${CONTAINER_PORT}/tcp" 2>/dev/null || true)
-if [[ ${#PORT_BINDINGS[@]} -eq 0 ]]; then
-  echo "[tests] Container ${CONTAINER_NAME} is running but port ${CONTAINER_PORT}/tcp is not published." >&2
-  echo "[tests] Start the container with an explicit port mapping (e.g. -p 2003:2003)." >&2
-  exit 6
-fi
-
-PORT_MAPPING="${PORT_BINDINGS[0]}"
-if [[ ! "${PORT_MAPPING}" =~ :([0-9]+)$ ]]; then
-  echo "[tests] Unable to parse published port mapping: ${PORT_MAPPING}" >&2
-  exit 6
-fi
-
-ENDPOINT_PORT="${BASH_REMATCH[1]}"
-ENDPOINT_HOST="${PORT_MAPPING%:*}"
-ENDPOINT_HOST="${ENDPOINT_HOST#[}"
-ENDPOINT_HOST="${ENDPOINT_HOST%]}"
-if [[ "${ENDPOINT_HOST}" == "0.0.0.0" || "${ENDPOINT_HOST}" == "::" || -z "${ENDPOINT_HOST}" ]]; then
-  ENDPOINT_HOST="127.0.0.1"
-fi
-
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[tests] python3 is required on the host to execute API-based conversion tests." >&2
   exit 7
+fi
+
+if [[ -n "${CONTAINER_NAME}" ]]; then
+  echo "[tests] Container hint: ${CONTAINER_NAME}" >&2
+fi
+
+if ! python3 - "${API_PROTOCOL}" "${ENDPOINT_HOST}" "${ENDPOINT_PORT}" <<'PY'
+import socket
+import sys
+import xmlrpc.client
+
+protocol, host, port = sys.argv[1:]
+socket.setdefaulttimeout(5)
+url = f"{protocol}://{host}:{port}"
+
+try:
+    info = xmlrpc.client.ServerProxy(url, allow_none=True).info()
+except Exception as exc:  # noqa: BLE001
+    print(f"[tests] Endpoint check failed for {url}: {exc}", file=sys.stderr)
+    raise SystemExit(1)
+
+if not isinstance(info, dict):
+    print(f"[tests] Endpoint check failed for {url}: unexpected info() response type {type(info)!r}", file=sys.stderr)
+    raise SystemExit(1)
+
+print(f"[tests] Endpoint ready: {url} (api={info.get('api', 'unknown')})", file=sys.stderr)
+PY
+then
+  echo "[tests] This test does not start or modify services; it only validates a live endpoint." >&2
+  exit 5
 fi
 
 ABS_OUT_DIR="$(realpath "${OUT_DIR}")"
@@ -80,7 +84,7 @@ skipped=0
 {
   echo "Office fixture conversion report"
   echo "UTC timestamp: ${TIMESTAMP}"
-  echo "Target container: ${CONTAINER_NAME}"
+  echo "Container hint: ${CONTAINER_NAME:-not-set}"
   echo "Endpoint: ${API_PROTOCOL}://${ENDPOINT_HOST}:${ENDPOINT_PORT}"
   echo "Transfer mode: remote binary upload/download (stdin/stdout)"
   echo "Client mode: host-python-xmlrpc"
