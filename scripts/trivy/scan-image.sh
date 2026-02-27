@@ -23,6 +23,11 @@ sanitize_label() {
   echo "${1//[^a-zA-Z0-9_.-]/_}"
 }
 
+is_tagged_image_ref() {
+  local ref="$1"
+  [[ "${ref}" == *:* && "${ref}" != sha256:* && "${ref}" != *@sha256:* ]]
+}
+
 merge_status() {
   local candidate="$1"
 
@@ -118,7 +123,30 @@ else
   fi
 
   if [[ ${#discovered_image_refs[@]} -gt 0 ]]; then
-    mapfile -t image_refs < <(printf '%s\n' "${discovered_image_refs[@]}" | awk 'NF' | sort -u)
+    declare -A image_id_to_ref=()
+    declare -a ordered_image_ids=()
+
+    for candidate in "${discovered_image_refs[@]}"; do
+      [[ -z "${candidate}" ]] && continue
+
+      resolved_id="$(docker image inspect --format '{{.Id}}' "${candidate}" 2>/dev/null || true)"
+      [[ -z "${resolved_id}" ]] && continue
+
+      if [[ -z "${image_id_to_ref["${resolved_id}"]+x}" ]]; then
+        image_id_to_ref["${resolved_id}"]="${candidate}"
+        ordered_image_ids+=("${resolved_id}")
+        continue
+      fi
+
+      existing_ref="${image_id_to_ref["${resolved_id}"]}"
+      if is_tagged_image_ref "${candidate}" && ! is_tagged_image_ref "${existing_ref}"; then
+        image_id_to_ref["${resolved_id}"]="${candidate}"
+      fi
+    done
+
+    for resolved_id in "${ordered_image_ids[@]}"; do
+      image_refs+=("${image_id_to_ref["${resolved_id}"]}")
+    done
   fi
 fi
 

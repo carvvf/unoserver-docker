@@ -1,13 +1,26 @@
 
 image:https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml/badge.svg?branch=custom["Weekly Trivy scan status",link="https://github.com/carvvf/unoserver-docker/actions/workflows/scan-active-image.yml"]
 
-NOTE: The information below refers to the upstream `unoconv/unoserver-docker` repository and may not fully reflect this fork. In this branch `custom`, `Dockerfile` is intentionally kept aligned with upstream. Use `Dockerfile.custom` for branch-specific hardened builds.
-
 *The project is looking for a new maintainer. If you are interested then please write in the following issue: https://github.com/unoconv/unoserver-docker/issues/97*
 
 = Unoserver Container Image
 
 Container image for unoserver
+
+== Fork-specific scope
+
+This repository is a fork of `unoconv/unoserver-docker`. Some content below is inherited from upstream and may not fully reflect fork-specific behavior.
+
+In this fork branch `custom`, `Dockerfile` is intentionally kept aligned with upstream to reduce merge friction. Use `Dockerfile.custom` for branch-specific hardened builds.
+
+The fork is designed and validated primarily for `linux/amd64`.
+
+`linux/arm64` support is kept for upstream compatibility and multi-arch publishing continuity.
+
+Workflow verification steps are architecture-aware:
+
+* Build and image scanning run for both `linux/amd64` and `linux/arm64`
+* Integration validation with `pytest` runs only on `linux/amd64`
 
 == The environment
 
