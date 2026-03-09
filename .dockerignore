@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+
+fixtures
+tests
+reports
+
+scripts
+
+**/__pycache__
+**/.pytest_cache
+*.log
