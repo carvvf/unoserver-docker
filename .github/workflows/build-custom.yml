@@ -67,6 +67,7 @@ jobs:
         uses: aquasecurity/trivy-action@0.30.0
         with:
           image-ref: ${{ env.IMAGE_REF }}
+          cache: false
           format: table
           exit-code: '1'
           severity: HIGH,CRITICAL
