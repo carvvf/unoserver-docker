@@ -64,9 +64,10 @@ jobs:
           tags: ${{ env.IMAGE_REF }}
 
       - name: Scan image with Trivy (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@0.30.0
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           image-ref: ${{ env.IMAGE_REF }}
+          version: v0.69.3
           cache: false
           format: table
           exit-code: '1'
