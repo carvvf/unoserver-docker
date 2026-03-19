@@ -175,15 +175,11 @@ jobs:
           file: ./Dockerfile.custom
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
+          no-cache: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: |
-            type=gha,scope=build-custom-linux-amd64
-            type=gha,scope=build-custom-linux-arm64
-            type=gha,scope=publish-custom-multiarch
-          cache-to: |
-            type=gha,mode=max,scope=publish-custom-multiarch
 
       - name: Inspect pushed images
         run: |

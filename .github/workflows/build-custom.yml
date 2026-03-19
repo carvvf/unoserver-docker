@@ -56,11 +56,9 @@ jobs:
           platforms: ${{ matrix.platform }}
           load: true
           push: false
+          pull: true
+          no-cache: true
           tags: ${{ env.IMAGE_REF }}
-          cache-from: |
-            type=gha,scope=build-custom-${{ env.PLATFORM_TAG }}
-          cache-to: |
-            type=gha,mode=max,scope=build-custom-${{ env.PLATFORM_TAG }}
 
       - name: Scan image with Trivy (fail on HIGH/CRITICAL)
         uses: aquasecurity/trivy-action@0.30.0
