@@ -1,0 +1,95 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+
+      "Write:*",
+      "Edit:*",
+
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(git rev-parse *)",
+      "Bash(git ls-files *)",
+
+      "Bash(rg *)",
+      "Bash(grep *)",
+      "Bash(find *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(xargs *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(cut *)",
+      "Bash(tr *)",
+      "Bash(wc *)",
+      "Bash(env)",
+      "Bash(printenv)",
+      "Bash(which *)",
+      "Bash(type *)",
+      "Bash(file *)",
+      "Bash(stat *)",
+      "Bash(realpath *)",
+      "Bash(dirname *)",
+      "Bash(basename *)",
+      "Bash(jq *)",
+
+      "Bash(docker ps *)",
+      "Bash(docker images *)",
+      "Bash(docker inspect *)",
+      "Bash(docker logs *)",
+      "Bash(docker image inspect *)",
+      "Bash(docker container inspect *)",
+      "Bash(docker cp *)",
+      "Bash(docker history *)",
+
+      "Bash(podman ps *)",
+      "Bash(podman images *)",
+      "Bash(podman inspect *)",
+      "Bash(podman logs *)",
+      "Bash(podman image inspect *)",
+      "Bash(podman container inspect *)",
+      "Bash(podman cp *)",
+      "Bash(podman history *)",
+
+      "Bash(pwd)",
+      "Bash(whoami)",
+
+      "Bash(.venv-dev/bin/python *)",
+      "Bash(.venv-dev/bin/pip *)",
+      "Bash(.venv-dev/bin/pytest *)",
+      "Bash(.venv-dev/bin/ruff *)",
+      "Bash(.venv-dev/bin/mypy *)",
+      "Bash(.venv-dev/bin/pyright *)",
+
+      "Bash(./.venv-dev/bin/python *)",
+      "Bash(./.venv-dev/bin/pip *)",
+      "Bash(./.venv-dev/bin/pytest *)",
+      "Bash(./.venv-dev/bin/ruff *)",
+      "Bash(./.venv-dev/bin/mypy *)",
+      "Bash(./.venv-dev/bin/pyright *)",
+
+      "Bash(uv run *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(sudo *)"
+    ]
+  },
+  "sandbox": {
+    "allow_paths": [
+      ".",
+      "..",
+      ".vscode/tasks.json",
+      ".claude/settings.json"
+    ]
+  }
+}

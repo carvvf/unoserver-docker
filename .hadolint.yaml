@@ -1,0 +1,3 @@
+ignored:
+  - DL3007  # latest tag is intentional for the uv helper stage
+  - DL3008  # apt package version pinning not required for this prototype
