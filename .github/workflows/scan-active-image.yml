@@ -172,3 +172,20 @@ jobs:
         run: |
           echo "HIGH/CRITICAL vulnerabilities detected after final scan." >&2
           exit 1
+
+  notify_on_rebuild:
+    needs:
+      - initial_scan
+      - publish_if_needed
+      - final_scan
+    if: >-
+      always() &&
+      needs.initial_scan.outputs.has_findings == 'true' &&
+      needs.publish_if_needed.result == 'success' &&
+      needs.final_scan.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Signal that image was rebuilt
+        run: |
+          echo "::error::Image rebuilt: HIGH/CRITICAL vulnerabilities were found and fixed. Run 'docker pull' to update local copies."
+          exit 1
