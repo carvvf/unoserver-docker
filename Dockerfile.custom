@@ -17,6 +17,7 @@ WORKDIR /
 
 RUN addgroup -S ${GID} && adduser -S ${UID} -G ${GID}
 
+# hadolint ignore=DL3018
 RUN apk upgrade --no-cache && \
     apk add --no-cache \
     bash curl \
@@ -40,8 +41,6 @@ RUN apk upgrade --no-cache && \
 
 # https://github.com/unoconv/unoserver/
 RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade \
-      pip && \
-    python3 -m pip install --break-system-packages --no-cache-dir --upgrade \
       unoserver==${VERSION_UNOSERVER}
 
 # setup supervisor
