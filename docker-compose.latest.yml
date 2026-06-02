@@ -12,7 +12,6 @@ services:
     mem_limit: "${MEMORY_LIMIT:-1g}"
     pids_limit: "${PIDS_LIMIT:-128}"
     tmpfs:
-      - /data
       - /tmp
     environment:
       HOME: /tmp

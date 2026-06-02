@@ -1,0 +1,7 @@
+# Reminders:
+#   sudo scripts/apparmor/unoserver-profile.sh enable
+#   docker compose -f docker-compose.latest.yml -f docker-compose.apparmor.yml up -d
+services:
+  unoserver:
+    security_opt:
+      - "apparmor=${APPARMOR_PROFILE:-docker-unoserver}"

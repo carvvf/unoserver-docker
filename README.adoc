@@ -83,6 +83,33 @@ NOTE: You must use `--host-location` otherwise unoconvert will default to local 
 ----
 unoconvert --host-location remote example.docx example.pdf
 ----
+
+=== Optional AppArmor confinement
+
+This fork includes an optional AppArmor profile for Ubuntu 24.04 hosts and
+compatible AppArmor-enabled Linux systems.
+
+The profile is intended for the stateless network service runtime. It does not
+support the inherited interactive examples that bind mount host directories to
+`/data`; `/data` is intentionally denied by the profile.
+
+[source,bash]
+----
+scripts/apparmor/unoserver-profile.sh check
+sudo scripts/apparmor/unoserver-profile.sh enable
+APPARMOR_PROFILE=docker-unoserver scripts/unoserver/run-local.sh
+----
+
+For Docker Compose, enable the profile and add the override file:
+
+[source,bash]
+----
+sudo scripts/apparmor/unoserver-profile.sh enable
+docker compose -f docker-compose.latest.yml -f docker-compose.apparmor.yml up
+----
+
+See link:docs/apparmor.md[docs/apparmor.md] for the threat model,
+operational impact, disable/remove commands, and troubleshooting.
 == FAQ
 
 Q. Why do I get an error during when converting is writing/exporting to file?

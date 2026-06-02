@@ -10,8 +10,19 @@ DOCKER_NETWORK="${DOCKER_NETWORK:-bridge}"
 CPU_LIMIT="${CPU_LIMIT:-2}"
 MEMORY_LIMIT="${MEMORY_LIMIT:-1g}"
 PIDS_LIMIT="${PIDS_LIMIT:-128}"
+APPARMOR_PROFILE="${APPARMOR_PROFILE:-}"
+DEFAULT_APPARMOR_PROFILE="${DEFAULT_APPARMOR_PROFILE:-docker-unoserver}"
 INTERRUPTED=0
 DOCKER_PID=""
+
+case "${APPARMOR_PROFILE,,}" in
+  ""|disabled|disable|none|no|false|off)
+    APPARMOR_PROFILE=""
+    ;;
+  enabled|enable|yes|true|on)
+    APPARMOR_PROFILE="${DEFAULT_APPARMOR_PROFILE}"
+    ;;
+esac
 
 check_already_running() {
   if docker ps --format '{{.Names}}' | grep -Fxq "${CONTAINER_NAME}"; then
@@ -59,23 +70,31 @@ echo "[run-local] Starting ${CONTAINER_NAME} from ${IMAGE_REF}"
 echo "[run-local] Network: ${DOCKER_NETWORK}"
 echo "[run-local] Bind: ${HOST_BIND_ADDRESS}:${HOST_PORT}->${CONTAINER_PORT}/tcp"
 echo "[run-local] Limits: cpus=${CPU_LIMIT}, memory=${MEMORY_LIMIT}, pids=${PIDS_LIMIT}"
+if [[ -n "${APPARMOR_PROFILE}" ]]; then
+  echo "[run-local] AppArmor profile: ${APPARMOR_PROFILE}"
+fi
 echo "[run-local] Press Ctrl+C to stop and remove the container cleanly."
 
-docker run \
+docker_args=(
   --name "${CONTAINER_NAME}" \
   --rm \
   --network "${DOCKER_NETWORK}" \
   --security-opt no-new-privileges:true \
   --cap-drop ALL \
   --read-only \
-  --tmpfs /data \
   --tmpfs /tmp \
   --cpus "${CPU_LIMIT}" \
   --memory "${MEMORY_LIMIT}" \
   --pids-limit "${PIDS_LIMIT}" \
   -e HOME=/tmp \
   -p "${HOST_BIND_ADDRESS}:${HOST_PORT}:${CONTAINER_PORT}" \
-  "${IMAGE_REF}" &
+)
+
+if [[ -n "${APPARMOR_PROFILE}" ]]; then
+  docker_args+=(--security-opt "apparmor=${APPARMOR_PROFILE}")
+fi
+
+docker run "${docker_args[@]}" "${IMAGE_REF}" &
 
 DOCKER_PID=$!
 

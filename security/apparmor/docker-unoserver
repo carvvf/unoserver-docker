@@ -1,0 +1,73 @@
+#include <tunables/global>
+
+profile docker-unoserver flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+  #include <abstractions/nameservice>
+
+  # unoserver listens on TCP/2003. UDP is kept for resolver traffic.
+  network inet tcp,
+  network inet6 tcp,
+  network inet udp,
+  network inet6 udp,
+  network unix stream,
+  network unix dgram,
+
+  deny network raw,
+  deny network packet,
+
+  file,
+  umount,
+
+  deny mount,
+  deny ptrace,
+
+  # Keep only process runtime state writable. The network service is stateless
+  # and must not use Docker volumes or host bind mounts for conversion data.
+  owner /tmp/** rwkl,
+  owner /run/** rwkl,
+  owner /var/run/** rwkl,
+
+  # /data is intentionally not part of the service contract. Deny it so an
+  # accidental host bind mount or Docker volume at this common path is not usable
+  # by the confined service process.
+  audit deny /data/ rwklx,
+  audit deny /data/** rwklx,
+
+  # Prevent mutation of the image filesystem when a container is run without
+  # --read-only. Deny rules intentionally override the broad compatibility rule.
+  audit deny /bin/** wl,
+  audit deny /boot/** wl,
+  audit deny /etc/** wl,
+  audit deny /home/** wl,
+  audit deny /lib/** wl,
+  audit deny /lib64/** wl,
+  audit deny /media/** wl,
+  audit deny /mnt/** wl,
+  audit deny /opt/** wl,
+  audit deny /root/** wl,
+  audit deny /sbin/** wl,
+  audit deny /srv/** wl,
+  audit deny /usr/** wl,
+  audit deny /var/cache/** wl,
+  audit deny /var/lib/** wl,
+  audit deny /var/log/** wl,
+  audit deny /var/spool/** wl,
+
+  # Protect kernel and host-facing pseudo filesystems. These rules mirror the
+  # intent of Docker's default profile while keeping explicit writable runtime
+  # paths above for this image.
+  deny @{PROC}/* w,
+  deny @{PROC}/{[^1-9],[^1-9][^0-9],[^1-9s][^0-9y][^0-9s],[^1-9][^0-9][^0-9][^0-9]*}/** w,
+  deny @{PROC}/sys/[^k]** w,
+  deny @{PROC}/sys/kernel/{?,??,[^s][^h][^m]**} w,
+  deny @{PROC}/sysrq-trigger rwklx,
+  deny @{PROC}/kcore rwklx,
+
+  deny /sys/[^f]*/** wklx,
+  deny /sys/f[^s]*/** wklx,
+  deny /sys/fs/[^c]*/** wklx,
+  deny /sys/fs/c[^g]*/** wklx,
+  deny /sys/fs/cg[^r]*/** wklx,
+  deny /sys/firmware/** rwklx,
+  deny /sys/kernel/security/** rwklx,
+}

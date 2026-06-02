@@ -32,7 +32,8 @@
         "env": {
           "CPU_LIMIT": "2",
           "MEMORY_LIMIT": "1g",
-          "PIDS_LIMIT": "128"
+          "PIDS_LIMIT": "128",
+          "APPARMOR_PROFILE": "${input:localAppArmorProfile}"
         }
       },
       "presentation": {
@@ -145,6 +146,18 @@
         "clear": false
       },
       "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "localAppArmorProfile",
+      "type": "pickString",
+      "description": "Use the AppArmor profile for local unoserver-docker?",
+      "options": [
+        "enabled",
+        "disabled"
+      ],
+      "default": "enabled"
     }
   ]
 }
