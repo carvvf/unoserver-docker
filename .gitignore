@@ -1,3 +1,6 @@
 # Runtime-generated artifacts
 reports/
 tests/out/
+
+# VS Code task-helper runtime state
+.vscode/.task-helper/
