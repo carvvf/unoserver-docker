@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-BENCH_VERSION="${BENCH_VERSION:-v1.6.0}"
+BENCH_VERSION="${BENCH_VERSION:-v1.6.1}"
 BENCH_REPO_URL="${BENCH_REPO_URL:-https://github.com/docker/docker-bench-security.git}"
 BENCH_IMAGE="${BENCH_IMAGE:-local/docker-bench-security:${BENCH_VERSION#v}}"
 DOCKER_BENCH_ARGS="${DOCKER_BENCH_ARGS:-}"

@@ -11,6 +11,11 @@ This repository is a fork of `unoconv/unoserver-docker`. Some content below is i
 
 In this fork branch `custom`, `Dockerfile` is intentionally kept aligned with upstream to reduce merge friction. Use `Dockerfile.custom` for branch-specific hardened builds.
 
+Published images carry their release in the `org.opencontainers.image.version` label, the same
+`A.B.C-custom.N` as their version tag, and the commit they were built from in
+`org.opencontainers.image.revision`. Images published before these labels were added carry
+neither: their release is only the tag that points at their digest.
+
 The fork is designed and validated primarily for `linux/amd64`.
 
 `linux/arm64` support is kept for upstream compatibility and multi-arch publishing continuity.

@@ -52,10 +52,10 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Initial scan with Trivy
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.target.outputs.image_ref }}
-          version: v0.69.3
+          version: v0.74.0
           cache: false
           format: json
           output: trivy-report-initial.json
@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload initial Trivy report artifact
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-initial-${{ github.run_id }}
           path: trivy-report-initial.json
@@ -119,10 +119,10 @@ jobs:
 
     steps:
       - name: Final scan with Trivy
-        uses: aquasecurity/trivy-action@0.35.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ needs.initial_scan.outputs.image_ref }}
-          version: v0.69.3
+          version: v0.74.0
           cache: false
           format: json
           output: trivy-report-final.json
@@ -160,7 +160,7 @@ jobs:
 
       - name: Upload final Trivy report artifact
         if: always()
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-final-${{ github.run_id }}
           path: trivy-report-final.json
