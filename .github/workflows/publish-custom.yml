@@ -29,6 +29,10 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+concurrency:
+  group: unoserver-image-publish-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   preflight:
     runs-on: ubuntu-latest
@@ -135,26 +139,42 @@ jobs:
             echo "- Computed fork version: ${version}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  build:
+  build-validate-and-promote:
     needs: preflight
-    uses: ./.github/workflows/build-custom.yml
-    with:
-      image_tag_suffix: ${{ needs.preflight.outputs.version }}
-    permissions:
-      contents: read
-
-  publish:
-    needs:
-      - preflight
-      - build
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    env:
+      RELEASE_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
+      LATEST_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      LOCAL_IMAGE_REF: local/unoserver-custom:amd64-${{ needs.preflight.outputs.version }}
+      OCI_IMAGE_REF: local/unoserver-custom:${{ needs.preflight.outputs.version }}
+      OCI_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}.oci.tar
+      AMD64_IMAGE_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}-amd64.docker.tar
+      ARM64_IMAGE_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}-arm64.docker.tar
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Free disk space for OCI and per-platform archives
+        run: |
+          set -euo pipefail
+
+          echo "Disk usage before cleanup"
+          df -h
+
+          sudo rm -rf \
+            /usr/local/lib/android \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL
+          sudo docker system prune -af || true
+
+          echo "Disk usage after cleanup"
+          df -h
 
       - name: Set up QEMU for multi-arch builds
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
@@ -162,40 +182,207 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image to GHCR (version + latest tags)
+      - name: Build one multi-architecture candidate for validation and promotion
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./Dockerfile.custom
           platforms: linux/amd64,linux/arm64
-          push: true
+          push: false
           pull: true
           no-cache: true
           build-args: |
             IMAGE_VERSION=${{ needs.preflight.outputs.version }}
             IMAGE_REVISION=${{ github.sha }}
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ env.OCI_IMAGE_REF }}
+          outputs: type=oci,dest=${{ env.OCI_ARCHIVE }},name=${{ env.OCI_IMAGE_REF }}
 
-      - name: Inspect pushed images
+      - name: Export both OCI candidate platforms for Trivy
         run: |
-          docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}
-          docker buildx imagetools inspect \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          set -euo pipefail
+
+          docker pull quay.io/skopeo/stable:v1.22.3
+
+          export_platform() {
+            local arch="$1"
+            local archive="$2"
+            local image_ref="local/unoserver-custom:${arch}-${{ needs.preflight.outputs.version }}"
+
+            docker run --rm \
+              -e OCI_IMAGE_REF \
+              -e TARGET_ARCH="${arch}" \
+              -e TARGET_ARCHIVE="${archive}" \
+              -e TARGET_IMAGE_REF="${image_ref}" \
+              -v "${OCI_ARCHIVE}:/image.oci.tar:ro" \
+              -v /tmp:/tmp \
+              --entrypoint /bin/sh \
+              quay.io/skopeo/stable:v1.22.3 \
+              -euc '
+                skopeo copy --override-os linux --override-arch "${TARGET_ARCH}" --retry-times 3 \
+                  "oci-archive:/image.oci.tar:${OCI_IMAGE_REF}" \
+                  "docker-archive:${TARGET_ARCHIVE}:${TARGET_IMAGE_REF}"
+              '
+          }
+
+          export_platform amd64 "${AMD64_IMAGE_ARCHIVE}"
+          export_platform arm64 "${ARM64_IMAGE_ARCHIVE}"
+
+      - name: Scan both candidate platform archives with Trivy
+        env:
+          TRIVY_CACHE_DIR: /tmp/trivy-cache
+        run: |
+          set -euo pipefail
+
+          mkdir -p "${TRIVY_CACHE_DIR}"
+          docker pull aquasec/trivy:0.74.0
+
+          scan_archive() {
+            local archive="$1"
+            local arch="$2"
+
+            docker run --rm \
+              -v "${archive}:${archive}:ro" \
+              -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
+              aquasec/trivy:0.74.0 \
+              image \
+              --input "${archive}" \
+              --format json \
+              --scanners vuln \
+              --severity HIGH,CRITICAL \
+              --pkg-types os,library \
+              --timeout 40m \
+              --exit-code 1 \
+              > "/tmp/trivy-report-candidate-${arch}.json"
+          }
+
+          scan_archive "${AMD64_IMAGE_ARCHIVE}" amd64
+          scan_archive "${ARM64_IMAGE_ARCHIVE}" arm64
+
+      - name: Upload candidate Trivy reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-candidate-${{ github.run_id }}
+          path: /tmp/trivy-report-candidate-*.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Load the scanned amd64 candidate for integration testing
+        run: docker load --input "${AMD64_IMAGE_ARCHIVE}"
+
+      - name: Install pytest for the amd64 integration test
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install pytest
+
+      - name: Start candidate for the amd64 integration test
+        run: |
+          set -euo pipefail
+          docker run -d \
+            --name unoserver-docker-local \
+            -p 2003:2003 \
+            "${LOCAL_IMAGE_REF}"
+
+      - name: Wait for XML-RPC endpoint readiness
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          import time
+          import xmlrpc.client
+
+          url = "http://127.0.0.1:2003"
+          last_error = None
+
+          for _ in range(60):
+              try:
+                  info = xmlrpc.client.ServerProxy(url, allow_none=True).info()
+                  if isinstance(info, dict):
+                      print(f"Endpoint ready: {info}")
+                      sys.exit(0)
+                  last_error = f"unexpected info() response type: {type(info)!r}"
+              except Exception as exc:  # noqa: BLE001
+                  last_error = str(exc)
+              time.sleep(2)
+
+          print(f"Endpoint did not become ready in time: {last_error}", file=sys.stderr)
+          sys.exit(1)
+          PY
+
+      - name: Run fixture conversion pytest
+        env:
+          CONTAINER_NAME: unoserver-docker-local
+          CONTAINER_PORT: '2003'
+          API_PROTOCOL: http
+        run: python3 -m pytest -q tests/pytest_office_fixtures_to_pdf.py
+
+      - name: Show container logs on test failure
+        if: failure()
+        run: docker logs --tail 200 unoserver-docker-local || true
+
+      - name: Clean up integration container
+        if: always()
+        run: docker rm -f unoserver-docker-local || true
+
+      - name: Promote the validated image with Skopeo
+        env:
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # The multi-architecture OCI archive was scanned and tested above.
+          # Copy its complete index, including both platform manifests, instead
+          # of rebuilding the release tags.
+          docker pull quay.io/skopeo/stable:v1.22.3
+          printf '%s' "${REGISTRY_PASSWORD}" | docker run --rm -i \
+            -e REGISTRY \
+            -e REGISTRY_USERNAME \
+            -e OCI_IMAGE_REF \
+            -e RELEASE_IMAGE \
+            -e LATEST_IMAGE \
+            -e REGISTRY_AUTH_FILE=/tmp/auth.json \
+            -v "${OCI_ARCHIVE}:/image.oci.tar:ro" \
+            --entrypoint /bin/sh \
+            quay.io/skopeo/stable:v1.22.3 \
+            -euc '
+              skopeo login --username "${REGISTRY_USERNAME}" --password-stdin "${REGISTRY}"
+              skopeo copy --all --retry-times 3 \
+                "oci-archive:/image.oci.tar:${OCI_IMAGE_REF}" "docker://${RELEASE_IMAGE}"
+              skopeo copy --all --retry-times 3 \
+                "docker://${RELEASE_IMAGE}" "docker://${LATEST_IMAGE}"
+            '
+
+      - name: Verify the promoted multi-architecture manifest
+        run: |
+          set -euo pipefail
+
+          docker buildx imagetools inspect "${RELEASE_IMAGE}"
+          docker buildx imagetools inspect "${LATEST_IMAGE}"
+          docker buildx imagetools inspect --raw "${RELEASE_IMAGE}" \
+            | jq -e '
+                [.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")]
+                | length == 1
+              ' >/dev/null
+          docker buildx imagetools inspect --raw "${RELEASE_IMAGE}" \
+            | jq -e '
+                [.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")]
+                | length == 1
+              ' >/dev/null
+
+      - name: Remove candidate archives
+        if: always()
+        run: |
+          rm -f \
+            "${OCI_ARCHIVE}" \
+            "${AMD64_IMAGE_ARCHIVE}" \
+            "${ARM64_IMAGE_ARCHIVE}"
 
       - name: Publish summary
         run: |
           {
             echo "## Publish Result"
-            echo "- Published image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.preflight.outputs.version }}"
-            echo "- Latest tag: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            echo "- Published image: ${RELEASE_IMAGE}"
+            echo "- Latest tag: ${LATEST_IMAGE}"
+            echo "- Source: one BuildKit invocation, promoted from the validated OCI archive with Skopeo without rebuilding"
           } >> "$GITHUB_STEP_SUMMARY"
