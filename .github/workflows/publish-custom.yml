@@ -150,6 +150,7 @@ jobs:
       LATEST_IMAGE: ghcr.io/${{ github.repository }}:latest
       LOCAL_IMAGE_REF: local/unoserver-custom:amd64-${{ needs.preflight.outputs.version }}
       OCI_IMAGE_REF: local/unoserver-custom:${{ needs.preflight.outputs.version }}
+      OCI_ARCHIVE_TAG: ${{ needs.preflight.outputs.version }}
       OCI_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}.oci.tar
       AMD64_IMAGE_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}-amd64.docker.tar
       ARM64_IMAGE_ARCHIVE: /tmp/unoserver-custom-${{ github.run_id }}-${{ github.sha }}-arm64.docker.tar
@@ -210,6 +211,7 @@ jobs:
 
             docker run --rm \
               -e OCI_IMAGE_REF \
+              -e OCI_ARCHIVE_TAG \
               -e TARGET_ARCH="${arch}" \
               -e TARGET_ARCHIVE="${archive}" \
               -e TARGET_IMAGE_REF="${image_ref}" \
@@ -219,7 +221,7 @@ jobs:
               quay.io/skopeo/stable:v1.22.3 \
               -euc '
                 skopeo copy --override-os linux --override-arch "${TARGET_ARCH}" --retry-times 3 \
-                  "oci-archive:/image.oci.tar:${OCI_IMAGE_REF}" \
+                  "oci-archive:/image.oci.tar:${OCI_ARCHIVE_TAG}" \
                   "docker-archive:${TARGET_ARCHIVE}:${TARGET_IMAGE_REF}"
               '
           }
@@ -339,6 +341,7 @@ jobs:
             -e REGISTRY \
             -e REGISTRY_USERNAME \
             -e OCI_IMAGE_REF \
+            -e OCI_ARCHIVE_TAG \
             -e RELEASE_IMAGE \
             -e LATEST_IMAGE \
             -e REGISTRY_AUTH_FILE=/tmp/auth.json \
@@ -348,7 +351,7 @@ jobs:
             -euc '
               skopeo login --username "${REGISTRY_USERNAME}" --password-stdin "${REGISTRY}"
               skopeo copy --all --retry-times 3 \
-                "oci-archive:/image.oci.tar:${OCI_IMAGE_REF}" "docker://${RELEASE_IMAGE}"
+                "oci-archive:/image.oci.tar:${OCI_ARCHIVE_TAG}" "docker://${RELEASE_IMAGE}"
               skopeo copy --all --retry-times 3 \
                 "docker://${RELEASE_IMAGE}" "docker://${LATEST_IMAGE}"
             '
