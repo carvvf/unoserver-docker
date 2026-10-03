@@ -376,7 +376,7 @@ jobs:
       - name: Remove candidate archives
         if: always()
         run: |
-          rm -f \
+          sudo rm -f \
             "${OCI_ARCHIVE}" \
             "${AMD64_IMAGE_ARCHIVE}" \
             "${ARM64_IMAGE_ARCHIVE}"
