@@ -40,7 +40,7 @@
       matchUpdateTypes: ["minor", "patch"],
     },
     {
-      // The base image tag carries the Alpine release (26-jre-alpine-3.24); a new Java major
+      // The base image tag carries the Alpine release (27-jre-alpine-3.24); a new Java major
       // or Alpine release changes what LibreOffice build the image ships, so it is reviewed.
       matchManagers: ["dockerfile"],
       matchPackageNames: ["eclipse-temurin"],

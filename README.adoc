@@ -25,6 +25,28 @@ Workflow verification steps are architecture-aware:
 * Build and image scanning run for both `linux/amd64` and `linux/arm64`
 * Integration validation with `pytest` runs only on `linux/amd64`
 
+Image rebuild triggers:
+
+* Every push to `custom` starts `rebuild-on-push.yml`, which runs the daily
+  `scan-active-image.yml` workflow with the same gates: build, Trivy, integration test,
+  publication, final scan of `latest`.
+* The daily run rebuilds when the active `latest` image was built from another commit of this
+  repository (its `org.opencontainers.image.revision` label differs from the `custom` head,
+  or is missing), when `latest` does not exist yet, or when the active image has HIGH or
+  CRITICAL findings. A commit-driven rebuild happens whether or not the upstream version
+  changed: the version stays `A.B.C` and only `N` in `A.B.C-custom.N` increases.
+  Documentation-only commits are included.
+* Daily, manual and push-triggered runs of `scan-active-image.yml` are serialized, so two of
+  them never both rebuild the same commit: a run started while another is in progress waits,
+  and GitHub keeps only the most recent waiting run. A waiting manual `force_rebuild`
+  replaced this way must be requested again. A `publish-custom.yml` run started directly is
+  serialized only with other publications.
+* To rebuild without a new commit, request one manually:
+  `gh workflow run scan-active-image.yml --repo carvvf/unoserver-docker -f force_rebuild=true`
+
+A successful rebuild deliberately ends the workflow with a failure notification: it is the
+signal to pull the new image and redeploy downstream services.
+
 == The environment
 
 This Container image uses Alpine Linux as a base image and provides:

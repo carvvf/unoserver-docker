@@ -4,12 +4,19 @@ run-name: Trivy scan
 on:
   workflow_dispatch:
     inputs:
+      force_rebuild:
+        description: "Build and publish a candidate even when no rebuild condition is present"
+        required: false
+        default: "false"
       force_fail:
         description: "Force workflow failure for notification testing"
         required: false
         default: "false"
   schedule:
-    - cron: '0 12 * * *'
+    # UTC schedule; Europe/Rome: 02:17 CET / 03:17 CEST.
+    - cron: '17 1 * * *'
+  # Called by rebuild-on-push.yml after every push to custom.
+  workflow_call:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -18,12 +25,24 @@ permissions:
   contents: read
   packages: read
 
+# Serializes the whole decision-to-publication sequence of daily, manual and
+# push-triggered runs: a run that starts while another is in progress waits and
+# then sees what it published, so both cannot decide to rebuild the same commit.
+# GitHub keeps one pending run per group; a newer one replaces it, and any run
+# evaluates every rebuild signal at the current custom head. The group must
+# differ from publish-custom.yml's, which this workflow calls, and the
+# rebuild-on-push.yml caller must not declare it, or GitHub reports a deadlock.
+concurrency:
+  group: unoserver-image-scan-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   initial_scan:
     runs-on: ubuntu-latest
     outputs:
       image_ref: ${{ steps.target.outputs.image_ref }}
       has_findings: ${{ steps.summary.outputs.has_findings }}
+      needs_rebuild: ${{ steps.summary.outputs.needs_rebuild }}
 
     steps:
       - name: Force failure (manual test)
@@ -32,8 +51,11 @@ jobs:
           echo "Forced failure for notification testing." >&2
           exit 1
 
-      - name: Resolve GHCR latest image tag
+      - name: Resolve GHCR latest image and its build commit
         id: target
+        env:
+          REGISTRY_USERNAME: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ github.token }}
         run: |
           set -euo pipefail
 
@@ -42,16 +64,81 @@ jobs:
           package_name="${GITHUB_REPOSITORY#*/}"
           tag="latest"
           image_ref="ghcr.io/${owner_lc}/${package_name}:${tag}"
+          active_exists="false"
+          active_revision=""
+          repository_changed="true"
 
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "image_ref=${image_ref}" >> "$GITHUB_OUTPUT"
+          printf '%s' "${REGISTRY_PASSWORD}" | docker login ghcr.io --username "${REGISTRY_USERNAME}" --password-stdin
+          if docker pull "${image_ref}"; then
+            active_exists="true"
+            # Commit of this repository the active image was built from. A
+            # different commit (including an image published before this label
+            # existed) means Dockerfile.custom, the build context or the
+            # workflows may have changed, so the image is rebuilt even when the
+            # upstream version is unchanged.
+            active_revision="$(docker image inspect "${image_ref}" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')"
+            if [ "${active_revision}" = "${GITHUB_SHA}" ]; then
+              repository_changed="false"
+            fi
+          else
+            echo "Active image is unavailable: ${image_ref}" >&2
+            echo "Treating this as a bootstrap publication; preflight will fail if GHCR is inaccessible." >&2
+          fi
+
+          {
+            echo "tag=${tag}"
+            echo "image_ref=${image_ref}"
+            echo "active_exists=${active_exists}"
+            echo "repository_changed=${repository_changed}"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "## Initial Scan Target"
             echo "- Image: ${image_ref}"
+            echo "- Active image available: ${active_exists}"
+            echo "- Active image built from commit: ${active_revision:-unknown}"
+            echo "- Current commit: ${GITHUB_SHA}"
+            echo "- Repository commit changed: ${repository_changed}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Decide rebuild from build inputs
+        id: input_decision
+        env:
+          ACTIVE_EXISTS: ${{ steps.target.outputs.active_exists }}
+          REPOSITORY_CHANGED: ${{ steps.target.outputs.repository_changed }}
+          FORCE_REBUILD: ${{ github.event_name == 'workflow_dispatch' && inputs.force_rebuild == 'true' }}
+        run: |
+          set -euo pipefail
+
+          # Each of these signals requires a rebuild whatever the active image's
+          # findings are, so the active image is scanned only when none is
+          # present. The candidate and the republished latest tag are scanned in
+          # every rebuild.
+          reasons=()
+          if [ "${ACTIVE_EXISTS}" != "true" ]; then
+            reasons+=("GHCR image bootstrap")
+          fi
+          if [ "${REPOSITORY_CHANGED}" = "true" ]; then
+            reasons+=("repository commit changed")
+          fi
+          if [ "${FORCE_REBUILD}" = "true" ]; then
+            reasons+=("manual force_rebuild input")
+          fi
+
+          required="false"
+          reason_text=""
+          if [ "${#reasons[@]}" -gt 0 ]; then
+            required="true"
+            reason_text="$(IFS='; '; echo "${reasons[*]}")"
+          fi
+
+          {
+            echo "required=${required}"
+            echo "reasons=${reason_text}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Initial scan with Trivy
+        if: steps.input_decision.outputs.required == 'false'
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ steps.target.outputs.image_ref }}
@@ -62,34 +149,48 @@ jobs:
           severity: HIGH,CRITICAL
           vuln-type: os,library
 
-      - name: Summarize initial vulnerabilities
+      - name: Summarize rebuild decision
         id: summary
+        env:
+          INPUT_REBUILD_REQUIRED: ${{ steps.input_decision.outputs.required }}
+          INPUT_REASONS: ${{ steps.input_decision.outputs.reasons }}
         run: |
           set -euo pipefail
 
-          if [ ! -f trivy-report-initial.json ]; then
-            echo "Trivy report not found." >&2
-            exit 1
-          fi
-
-          critical_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report-initial.json)"
-          high_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report-initial.json)"
-
           has_findings="false"
-          if [ "${critical_count}" -gt 0 ] || [ "${high_count}" -gt 0 ]; then
-            has_findings="true"
+          needs_rebuild="${INPUT_REBUILD_REQUIRED}"
+          reason_text="${INPUT_REASONS:-none}"
+          critical_count="not scanned (rebuild already required)"
+          high_count="${critical_count}"
+
+          if [ "${INPUT_REBUILD_REQUIRED}" != "true" ]; then
+            if [ ! -f trivy-report-initial.json ]; then
+              echo "Trivy report not found." >&2
+              exit 1
+            fi
+
+            critical_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length' trivy-report-initial.json)"
+            high_count="$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length' trivy-report-initial.json)"
+
+            if [ "${critical_count}" -gt 0 ] || [ "${high_count}" -gt 0 ]; then
+              has_findings="true"
+              needs_rebuild="true"
+              reason_text="HIGH/CRITICAL findings in active image"
+            fi
           fi
 
-          echo "critical_count=${critical_count}" >> "$GITHUB_OUTPUT"
-          echo "high_count=${high_count}" >> "$GITHUB_OUTPUT"
-          echo "has_findings=${has_findings}" >> "$GITHUB_OUTPUT"
+          {
+            echo "has_findings=${has_findings}"
+            echo "needs_rebuild=${needs_rebuild}"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "## Initial Trivy Result"
             echo "- Image: ${{ steps.target.outputs.image_ref }}"
             echo "- CRITICAL: ${critical_count}"
             echo "- HIGH: ${high_count}"
-            echo "- Trigger publish-custom: ${has_findings}"
+            echo "- Trigger publish-custom: ${needs_rebuild}"
+            echo "- Reason: ${reason_text}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload initial Trivy report artifact
@@ -102,7 +203,7 @@ jobs:
           retention-days: 14
 
   publish_if_needed:
-    if: ${{ needs.initial_scan.outputs.has_findings == 'true' }}
+    if: ${{ needs.initial_scan.outputs.needs_rebuild == 'true' }}
     needs: initial_scan
     uses: ./.github/workflows/publish-custom.yml
     permissions:
@@ -114,7 +215,7 @@ jobs:
     needs:
       - initial_scan
       - publish_if_needed
-    if: ${{ needs.initial_scan.outputs.has_findings == 'true' && needs.publish_if_needed.result == 'success' }}
+    if: ${{ needs.initial_scan.outputs.needs_rebuild == 'true' && needs.publish_if_needed.result == 'success' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -180,12 +281,12 @@ jobs:
       - final_scan
     if: >-
       always() &&
-      needs.initial_scan.outputs.has_findings == 'true' &&
+      needs.initial_scan.outputs.needs_rebuild == 'true' &&
       needs.publish_if_needed.result == 'success' &&
       needs.final_scan.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Signal that image was rebuilt
         run: |
-          echo "::error::Image rebuilt: HIGH/CRITICAL vulnerabilities were found and fixed. Run 'docker pull' to update local copies."
+          echo "::error::Image rebuilt and scanned cleanly. Run 'docker pull' to update local copies."
           exit 1
