@@ -67,15 +67,26 @@ jobs:
           tags: ${{ env.IMAGE_REF }}
 
       - name: Scan image with Trivy (fail on HIGH/CRITICAL)
-        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
-        with:
-          image-ref: ${{ env.IMAGE_REF }}
-          version: v0.74.0
-          cache: false
-          format: table
-          exit-code: '1'
-          severity: HIGH,CRITICAL
-          vuln-type: os,library
+        run: |
+          set -euo pipefail
+
+          trivy_image="$(scripts/trivy/trivy_image.sh)"
+          echo "Trivy image: ${trivy_image}"
+          echo "- Trivy scanner: ${trivy_image}" >> "$GITHUB_STEP_SUMMARY"
+          docker pull "${trivy_image}"
+          docker run --rm \
+            -e TRIVY_DISABLE_TELEMETRY=true \
+            -e TRIVY_SKIP_VERSION_CHECK=true \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            "${trivy_image}" \
+            image \
+            --format table \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            --pkg-types os,library \
+            --timeout 40m \
+            --exit-code 1 \
+            "${IMAGE_REF}"
 
       - name: Install pytest (amd64 integration run)
         if: matrix.platform == 'linux/amd64'
@@ -127,6 +138,10 @@ jobs:
           API_PROTOCOL: http
         run: |
           python3 -m pytest -q tests/pytest_office_fixtures_to_pdf.py
+
+      - name: Test that a hung conversion restarts the service (amd64)
+        if: matrix.platform == 'linux/amd64'
+        run: tests/test-conversion-timeout.sh
 
       - name: Show container logs on failure (amd64)
         if: failure() && matrix.platform == 'linux/amd64'

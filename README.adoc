@@ -130,8 +130,8 @@ it, so a document could otherwise make this host send requests to its own networ
 internet. Clients reach the service by name on that network. A client that also needs outbound access
 joins a second network of its own.
 
-To reach the service from the host during development, add `docker-compose.host-port.yml`. It publishes
-the port on loopback and gives the container a way out, so it is not for production.
+To reach the service from the host during development, use `scripts/unoserver/run-local.sh`, which runs
+it apart from this network with the port published on loopback.
 
 === Optional AppArmor confinement
 

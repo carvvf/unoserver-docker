@@ -236,16 +236,21 @@ jobs:
           set -euo pipefail
 
           mkdir -p "${TRIVY_CACHE_DIR}"
-          docker pull aquasec/trivy:0.74.0
+          trivy_image="$(scripts/trivy/trivy_image.sh)"
+          echo "Trivy image: ${trivy_image}"
+          echo "- Trivy scanner: ${trivy_image}" >> "$GITHUB_STEP_SUMMARY"
+          docker pull "${trivy_image}"
 
           scan_archive() {
             local archive="$1"
             local arch="$2"
 
             docker run --rm \
+              -e TRIVY_DISABLE_TELEMETRY=true \
+              -e TRIVY_SKIP_VERSION_CHECK=true \
               -v "${archive}:${archive}:ro" \
               -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
-              aquasec/trivy:0.74.0 \
+              "${trivy_image}" \
               image \
               --input "${archive}" \
               --format json \
@@ -262,7 +267,7 @@ jobs:
 
       - name: Upload candidate Trivy reports
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trivy-candidate-${{ github.run_id }}
           path: /tmp/trivy-report-candidate-*.json
@@ -317,6 +322,11 @@ jobs:
           CONTAINER_PORT: '2003'
           API_PROTOCOL: http
         run: python3 -m pytest -q tests/pytest_office_fixtures_to_pdf.py
+
+      - name: Test that a hung conversion restarts the service
+        env:
+          IMAGE_REF: ${{ env.LOCAL_IMAGE_REF }}
+        run: tests/test-conversion-timeout.sh
 
       - name: Show container logs on test failure
         if: failure()

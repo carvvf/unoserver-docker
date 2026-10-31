@@ -3,8 +3,8 @@ FROM eclipse-temurin:27-jre-alpine-3.24
 ARG BUILD_CONTEXT="build-context"
 ARG UID=worker
 ARG GID=worker
-# renovate: pypi: unoserver
-ARG VERSION_UNOSERVER=3.7
+# Only the major is pinned, so that a rebuild picks up the fixes of its newest release.
+ARG UNOSERVER_MAJOR=3
 # Set by the publishing workflow: the release (A.B.C-custom.N, the same as the version tag)
 # and the commit it was built from. Empty for local builds, which have no release.
 ARG IMAGE_VERSION=""
@@ -47,7 +47,7 @@ RUN apk upgrade --no-cache && \
 
 # https://github.com/unoconv/unoserver/
 RUN python3 -m pip install --break-system-packages --no-cache-dir --upgrade \
-      unoserver==${VERSION_UNOSERVER}
+      "unoserver==${UNOSERVER_MAJOR}.*"
 
 # setup supervisor
 COPY --chown=${UID}:${GID} ${BUILD_CONTEXT} /

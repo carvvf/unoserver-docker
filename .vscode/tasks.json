@@ -20,7 +20,7 @@
     {
       "label": "docker: stop and remove unoserver-docker",
       "type": "shell",
-      "command": "docker compose -p ragtime-unoserver -f docker-compose.latest.yml -f docker-compose.host-port.yml down --remove-orphans",
+      "command": "docker compose -p ragtime-unoserver -f docker-compose.latest.yml down --remove-orphans",
       "options": {
         "cwd": "${workspaceFolder}"
       },
@@ -94,6 +94,20 @@
           "FAIL_SEVERITY": "HIGH,CRITICAL",
           "TRIVY_CLEAN_ARGS": "--scan-cache"
         }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: conversion timeout",
+      "type": "shell",
+      "command": "${workspaceFolder}/tests/test-conversion-timeout.sh",
+      "options": {
+        "cwd": "${workspaceFolder}"
       },
       "presentation": {
         "reveal": "always",

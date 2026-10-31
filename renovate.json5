@@ -1,7 +1,7 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
   // Keep pinned GitHub Actions on a commit digest, with the release tag in a comment.
-  // The github-actions manager also follows the Trivy release passed to trivy-action.
+  // Trivy is not listed: scripts/trivy/trivy_image.sh resolves its newest patch release.
   extends: ["helpers:pinGitHubActionDigests"],
   enabledManagers: ["dockerfile", "github-actions", "custom.regex"],
   // Only what the `custom` branch builds and runs. The Dockerfile and the workflows inherited
@@ -16,14 +16,6 @@
   customManagers: [
     {
       customType: "regex",
-      managerFilePatterns: ["/^Dockerfile\\.custom$/"],
-      matchStrings: ["# renovate: pypi: unoserver.*\\sARG VERSION_UNOSERVER=(?<currentValue>.*)"],
-      datasourceTemplate: "pypi",
-      depNameTemplate: "unoserver",
-      versioningTemplate: "pep440",
-    },
-    {
-      customType: "regex",
       managerFilePatterns: ["/^scripts/docker-bench/run\\.sh$/"],
       matchStrings: ['BENCH_VERSION="\\$\\{BENCH_VERSION:-(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\}"'],
       datasourceTemplate: "github-releases",
@@ -31,14 +23,6 @@
     },
   ],
   packageRules: [
-    {
-      matchDatasources: ["pypi"],
-      matchPackageNames: ["unoserver"],
-      automerge: true,
-      automergeType: "pr",
-      automergeStrategy: "branch",
-      matchUpdateTypes: ["minor", "patch"],
-    },
     {
       // The base image tag carries the Alpine release (27-jre-alpine-3.24); a new Java major
       // or Alpine release changes what LibreOffice build the image ships, so it is reviewed.

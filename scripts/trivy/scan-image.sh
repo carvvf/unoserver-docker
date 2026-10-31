@@ -14,6 +14,30 @@ FAIL_SEVERITY="${FAIL_SEVERITY:-HIGH,CRITICAL}"
 REPORTS_DIR="${REPORTS_DIR:-${REPO_ROOT}/reports/trivy}"
 FS_SKIP_DIRS="${FS_SKIP_DIRS:-${REPORTS_DIR}}"
 TRIVY_CLEAN_ARGS="${TRIVY_CLEAN_ARGS:---scan-cache}"
+TRIVY_CACHE_DIR="${TRIVY_CACHE_DIR:-/tmp/unoserver-docker-trivy-cache}"
+
+# The same scanner as CI, in a container, rather than whatever is installed on this host.
+# TRIVY_IMAGE selects another one.
+if [[ -z "${TRIVY_IMAGE:-}" ]]; then
+  TRIVY_IMAGE="$("${SCRIPT_DIR}/trivy_image.sh")" || {
+    echo "[trivy-task] Cannot resolve the scanner image; set TRIVY_IMAGE to choose one." >&2
+    exit 2
+  }
+fi
+mkdir -p "${TRIVY_CACHE_DIR}"
+echo "[trivy-task] Using scanner image: ${TRIVY_IMAGE}" >&2
+docker pull "${TRIVY_IMAGE}" >/dev/null
+
+trivy() {
+  docker run --rm \
+    -e TRIVY_DISABLE_TELEMETRY=true \
+    -e TRIVY_SKIP_VERSION_CHECK=true \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "${TRIVY_CACHE_DIR}:/root/.cache/trivy" \
+    -v "${REPO_TARGET}:${REPO_TARGET}:ro" \
+    -v "$(dirname "${DOCKERFILE_PATH}"):$(dirname "${DOCKERFILE_PATH}"):ro" \
+    "${TRIVY_IMAGE}" "$@"
+}
 
 mkdir -p "${REPORTS_DIR}"
 ts="$(date -u +%Y%m%d-%H%M%S)"
@@ -52,7 +76,7 @@ run_scan() {
     return 2
   fi
 
-  if ! trivy "${mode}" --severity "${SEVERITY}" --format json --output "${json_report}" "$@"; then
+  if ! trivy "${mode}" --severity "${SEVERITY}" --format json "$@" > "${json_report}"; then
     echo "[trivy-task] JSON report generation failed for ${name}" >&2
     return 2
   fi
