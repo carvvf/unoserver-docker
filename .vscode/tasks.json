@@ -2,19 +2,14 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build unoserver-docker",
+      "label": "docker: build and run unoserver-docker",
       "type": "shell",
-      "command": "docker",
-      "args": [
-        "build",
-        "-f",
-        "${workspaceFolder}/Dockerfile.custom",
-        "-t",
-        "unoserver-docker:local",
-        "."
-      ],
+      "command": "set -e; overlay=''; if [ '${input:localAppArmorProfile}' = 'enabled' ]; then overlay='-f docker-compose.apparmor.yml'; fi; docker build -f \"${workspaceFolder}/Dockerfile.custom\" -t unoserver-docker:local .; docker compose -p ragtime-unoserver -f docker-compose.latest.yml $overlay up -d; docker network inspect -f '{{.Name}} internal={{.Internal}}' unoserver-docker-net; docker inspect -f '{{.Name}} apparmor={{.AppArmorProfile}}' unoserver-docker",
       "options": {
-        "cwd": "${workspaceFolder}"
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "IMAGE_REF": "unoserver-docker:local"
+        }
       },
       "group": {
         "kind": "build",
@@ -23,10 +18,23 @@
       "problemMatcher": []
     },
     {
+      "label": "docker: stop and remove unoserver-docker",
+      "type": "shell",
+      "command": "docker compose -p ragtime-unoserver -f docker-compose.latest.yml -f docker-compose.host-port.yml down --remove-orphans",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "local: run unoserver-docker",
       "type": "shell",
-      "dependsOn": "build unoserver-docker",
-      "command": "${workspaceFolder}/scripts/unoserver/run-local.sh",
+      "command": "docker build -f \"${workspaceFolder}/Dockerfile.custom\" -t unoserver-docker:local . && \"${workspaceFolder}/scripts/unoserver/run-local.sh\"",
       "options": {
         "cwd": "${workspaceFolder}",
         "env": {

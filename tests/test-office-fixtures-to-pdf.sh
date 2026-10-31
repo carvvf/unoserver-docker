@@ -14,6 +14,10 @@ OFFICE_FIXTURES_DIR="${OFFICE_FIXTURES_DIR:-${FIXTURES_DIR:-${REPO_ROOT}/fixture
 ZENODO_FIXTURES_DIR="${ZENODO_FIXTURES_DIR:-${REPO_ROOT}/fixtures/zenodo}"
 OFFICE_OUT_DIR="${OUT_DIR}/office"
 ZENODO_OUT_DIR="${OUT_DIR}/zenodo"
+# docker-compose.latest.yml publishes no port, so that service is reached from its own network.
+SERVICE_CONTAINER="${SERVICE_CONTAINER:-unoserver-docker}"
+SERVICE_NETWORK="${SERVICE_NETWORK:-unoserver-docker-net}"
+CLIENT_MODE="${CLIENT_MODE:-host-python-xmlrpc}"
 TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
 REPORT_FILE="${OUT_DIR}/conversion-${TIMESTAMP}.report.txt"
 
@@ -43,7 +47,8 @@ if [[ -n "${CONTAINER_NAME}" ]]; then
   echo "[tests] Container hint: ${CONTAINER_NAME}" >&2
 fi
 
-if ! python3 - "${API_PROTOCOL}" "${ENDPOINT_HOST}" "${ENDPOINT_PORT}" <<'PY'
+endpoint_ready() {
+  python3 - "${API_PROTOCOL}" "${ENDPOINT_HOST}" "${ENDPOINT_PORT}" <<'PY'
 import socket
 import sys
 import xmlrpc.client
@@ -64,8 +69,66 @@ if not isinstance(info, dict):
 
 print(f"[tests] Endpoint ready: {url} (api={info.get('api', 'unknown')})", file=sys.stderr)
 PY
-then
+}
+
+service_on_internal_network() {
+  command -v docker >/dev/null 2>&1 \
+    && docker network inspect "${SERVICE_NETWORK}" >/dev/null 2>&1 \
+    && [[ "$(docker inspect -f '{{.State.Running}}' "${SERVICE_CONTAINER}" 2>/dev/null)" == "true" ]]
+}
+
+# The reason the network is internal: LibreOffice fetches what a document links to.
+assert_no_way_out() {
+  if [[ "$(docker network inspect -f '{{.Internal}}' "${SERVICE_NETWORK}")" != "true" ]]; then
+    echo "[tests] ${SERVICE_NETWORK} is not an internal network: documents can make this host send requests." >&2
+    exit 6
+  fi
+  if docker exec "${SERVICE_CONTAINER}" python3 -c \
+    'import socket; socket.create_connection(("1.1.1.1", 443), timeout=3).close()' >/dev/null 2>&1; then
+    echo "[tests] ${SERVICE_CONTAINER} reached the internet from ${SERVICE_NETWORK}." >&2
+    exit 6
+  fi
+  echo "[tests] ${SERVICE_CONTAINER} has no way out of ${SERVICE_NETWORK}." >&2
+}
+
+# Runs this script again in a throwaway container of the same image on the service's network.
+# Nothing is written outside the output directory.
+run_on_service_network() {
+  local image abs_tests abs_office abs_zenodo abs_out rc
+  image="$(docker inspect -f '{{.Config.Image}}' "${SERVICE_CONTAINER}")"
+  abs_tests="$(realpath "${SCRIPT_DIR}")"
+  abs_office="$(realpath "${OFFICE_FIXTURES_DIR}")"
+  abs_zenodo="$(realpath "${ZENODO_FIXTURES_DIR}")"
+  abs_out="$(realpath "${OUT_DIR}")"
+  echo "[tests] No endpoint on ${ENDPOINT_HOST}:${ENDPOINT_PORT}; testing ${SERVICE_CONTAINER} from ${SERVICE_NETWORK}." >&2
+  rc=0
+  docker run --rm --network "${SERVICE_NETWORK}" --user "$(id -u):$(id -g)" \
+    --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
+    -e HOME=/tmp \
+    -e TEST_ON_SERVICE_NETWORK=1 \
+    -e CLIENT_MODE=container-on-internal-network \
+    -e API_PROTOCOL="${API_PROTOCOL}" \
+    -e ENDPOINT_HOST="${SERVICE_CONTAINER}" \
+    -e ENDPOINT_PORT="${CONTAINER_PORT}" \
+    -e OUT_DIR=/test/out \
+    -e OFFICE_FIXTURES_DIR=/test/fixtures/office \
+    -e ZENODO_FIXTURES_DIR=/test/fixtures/zenodo \
+    -v "${abs_tests}:/test/tests:ro" \
+    -v "${abs_office}:/test/fixtures/office:ro" \
+    -v "${abs_zenodo}:/test/fixtures/zenodo:ro" \
+    -v "${abs_out}:/test/out" \
+    --entrypoint bash "${image}" /test/tests/test-office-fixtures-to-pdf.sh || rc=$?
+  echo "[tests] Output on this host: ${abs_out}" >&2
+  exit "${rc}"
+}
+
+if ! endpoint_ready; then
+  if [[ -z "${TEST_ON_SERVICE_NETWORK:-}" ]] && service_on_internal_network; then
+    assert_no_way_out
+    run_on_service_network
+  fi
   echo "[tests] This test does not start or modify services; it only validates a live endpoint." >&2
+  echo "[tests] Start one with 'local: run unoserver-docker' or 'docker: build and run unoserver-docker'." >&2
   exit 5
 fi
 
@@ -87,7 +150,7 @@ skipped=0
   echo "Container hint: ${CONTAINER_NAME:-not-set}"
   echo "Endpoint: ${API_PROTOCOL}://${ENDPOINT_HOST}:${ENDPOINT_PORT}"
   echo "Transfer mode: remote binary upload/download (stdin/stdout)"
-  echo "Client mode: host-python-xmlrpc"
+  echo "Client mode: ${CLIENT_MODE}"
   echo "Fixtures (office): ${ABS_OFFICE_FIXTURES_DIR}"
   echo "Fixtures (zenodo): ${ABS_ZENODO_FIXTURES_DIR}"
   echo "Output root: ${ABS_OUT_DIR}"

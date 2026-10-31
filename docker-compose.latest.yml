@@ -15,11 +15,13 @@ services:
       - /tmp
     environment:
       HOME: /tmp
-    # Development-only host exposure (loopback only).
-    # In production, comment out this block to disable host access.
-    ports:
-      - "${HOST_BIND_ADDRESS:-127.0.0.1}:${HOST_PORT:-2003}:${CONTAINER_PORT:-2003}"
-    # Internal Docker network for service-to-service communication.
+      # Seconds one conversion may take. Past it the service exits and restarts, so that a
+      # document that hangs LibreOffice cannot block the conversions after it.
+      UNOSERVER_CONVERSION_TIMEOUT: "${UNOSERVER_CONVERSION_TIMEOUT:-60}"
+    # The only network, and it has no way out: LibreOffice fetches what a document links to
+    # while converting it, and the documents are untrusted. No port is published, because an
+    # internal network cannot publish one. docker-compose.host-port.yml adds both for
+    # development.
     networks:
       - unoserver-docker-net
     restart: unless-stopped
@@ -28,3 +30,4 @@ networks:
   unoserver-docker-net:
     name: unoserver-docker-net
     driver: bridge
+    internal: true

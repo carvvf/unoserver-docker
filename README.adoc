@@ -111,6 +111,28 @@ NOTE: You must use `--host-location` otherwise unoconvert will default to local 
 unoconvert --host-location remote example.docx example.pdf
 ----
 
+=== Conversion timeout
+
+In non-interactive mode, one conversion may take at most `UNOSERVER_CONVERSION_TIMEOUT` seconds
+(a positive integer, default `60`). Past it the container exits with status 1, and the restart
+policy of `docker-compose.latest.yml` brings up a clean service, so that a document that hangs
+LibreOffice cannot block the conversions after it. The client receives an error, and other
+conversions fail until the service is back, a few seconds later.
+
+Keep it above the timeout of the client: a conversion that the client has given up on is the only
+one that should be stopped. A container run without a restart policy stays down.
+
+=== Network
+
+`docker-compose.latest.yml` puts the service on `unoserver-docker-net`, an `internal` network with no
+way out, and publishes no port. LibreOffice fetches images that a document links to while converting
+it, so a document could otherwise make this host send requests to its own network or to the
+internet. Clients reach the service by name on that network. A client that also needs outbound access
+joins a second network of its own.
+
+To reach the service from the host during development, add `docker-compose.host-port.yml`. It publishes
+the port on loopback and gives the container a way out, so it is not for production.
+
 === Optional AppArmor confinement
 
 This fork includes an optional AppArmor profile for Ubuntu 24.04 hosts and
