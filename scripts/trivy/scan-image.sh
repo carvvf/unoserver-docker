@@ -65,6 +65,12 @@ run_scan() {
   local mode="$2"
   shift 2
 
+  # Config scans do not use the vulnerability DB.
+  if [[ "${mode}" != "config" ]]; then
+    set -- --db-repository ghcr.io/aquasecurity/trivy-db:2 \
+      --db-repository mirror.gcr.io/aquasec/trivy-db:2 "$@"
+  fi
+
   local text_report="${base}.${name}.txt"
   local json_report="${base}.${name}.json"
   local scan_status=0
