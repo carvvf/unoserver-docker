@@ -50,6 +50,9 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Check vulnerability report policy
+        run: python3 -m unittest scripts.trivy.test_report_policy
+
       - name: Verify current branch is aligned with upstream
         run: |
           set -euo pipefail
@@ -260,18 +263,22 @@ jobs:
               --severity HIGH,CRITICAL \
               --pkg-types os,library \
               --timeout 40m \
-              --exit-code 1 \
+              --exit-code 0 \
               > "/tmp/trivy-report-candidate-${arch}.json"
           }
 
           scan_archive "${AMD64_IMAGE_ARCHIVE}" amd64
           scan_archive "${ARM64_IMAGE_ARCHIVE}" arm64
 
+          python3 scripts/trivy/report_policy.py \
+            /tmp/trivy-report-candidate-amd64.json /tmp/trivy-report-candidate-arm64.json \
+            --context "Candidate image architectures"
+
       - name: Upload candidate Trivy reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: trivy-candidate-${{ github.run_id }}
+          name: trivy-candidate-${{ github.run_id }}-${{ github.run_attempt }}
           path: /tmp/trivy-report-candidate-*.json
           if-no-files-found: ignore
           retention-days: 14

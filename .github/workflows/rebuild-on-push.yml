@@ -4,8 +4,7 @@ run-name: Rebuild for custom commit ${{ github.sha }}
 # Every push to custom publishes an image built from the pushed commit, also
 # when the upstream version is unchanged. The daily scan workflow is reused as
 # is: its repository revision check sees the new commit and runs the existing
-# build, Trivy, integration-test, publication, final scan and rebuild
-# notification gates.
+# build, Trivy, integration-test, publication and final scan gates.
 on:
   push:
     branches:

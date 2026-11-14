@@ -7,6 +7,8 @@ Container image for unoserver
 
 == Fork-specific scope
 
+CI publication blocks fixable HIGH/CRITICAL findings and permits findings without a listed fix with explicit warning annotations. See link:docs/ci-security-policy.md[the CI security policy]. Both legacy manual workflow entrypoints delegate to the custom gated workflows.
+
 This repository is a fork of `unoconv/unoserver-docker`. Some content below is inherited from upstream and may not fully reflect fork-specific behavior.
 
 In this fork branch `custom`, `Dockerfile` is intentionally kept aligned with upstream to reduce merge friction. Use `Dockerfile.custom` for branch-specific hardened builds.
@@ -44,8 +46,9 @@ Image rebuild triggers:
 * To rebuild without a new commit, request one manually:
   `gh workflow run scan-active-image.yml --repo carvvf/unoserver-docker -f force_rebuild=true`
 
-A successful rebuild deliberately ends the workflow with a failure notification: it is the
-signal to pull the new image and redeploy downstream services.
+A successful rebuild and clean final scan complete the workflow successfully. Review
+workflow summaries and published tags, then pull the new image and redeploy downstream
+services. Real build, scan, or integration-test failures still fail the workflow.
 
 == The environment
 

@@ -34,6 +34,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Check vulnerability report policy
+        run: python3 -m unittest scripts.trivy.test_report_policy
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
@@ -66,7 +69,7 @@ jobs:
             IMAGE_REVISION=${{ github.sha }}
           tags: ${{ env.IMAGE_REF }}
 
-      - name: Scan image with Trivy (fail on HIGH/CRITICAL)
+      - name: Scan image and apply the vulnerability publication policy
         run: |
           set -euo pipefail
 
@@ -80,15 +83,26 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             "${trivy_image}" \
             image \
-            --format table \
+            --format json \
             --scanners vuln \
             --db-repository ghcr.io/aquasecurity/trivy-db:2 \
             --db-repository mirror.gcr.io/aquasec/trivy-db:2 \
             --severity HIGH,CRITICAL \
             --pkg-types os,library \
             --timeout 40m \
-            --exit-code 1 \
-            "${IMAGE_REF}"
+            --exit-code 0 \
+            "${IMAGE_REF}" > /tmp/trivy-report-candidate.json
+
+          python3 scripts/trivy/report_policy.py /tmp/trivy-report-candidate.json --context "Candidate image"
+
+      - name: Retain candidate vulnerability evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: trivy-candidate-${{ matrix.platform == 'linux/amd64' && 'amd64' || 'arm64' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/trivy-report-candidate.json
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Install pytest (amd64 integration run)
         if: matrix.platform == 'linux/amd64'

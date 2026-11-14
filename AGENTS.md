@@ -119,3 +119,20 @@ For each meaningful change, provide:
 - how to test it locally
 - notes on upstream merge impact (if any)
 - any security implications and operational considerations
+
+## CI Vulnerability Publication Policy
+
+1. A clean security-triggered rebuild completes successfully without an intentional
+   notification failure or a residual-vulnerability warning.
+2. HIGH/CRITICAL OS and library findings with a fixed version listed by Trivy block
+   publication and fail the workflow, including when pins or compatibility prevent
+   adopting that fix automatically.
+3. Findings without a listed fixed version do not block publication. Emit explicit
+   GitHub warning annotations with CVE, package, installed version, and target;
+   preserve the details in the job summary and retained scan evidence.
+4. Apply the same decision to candidates, all published architectures, and final
+   scans. Do not emit initial-scan warnings that can survive a successful remediation.
+5. Scanner failures and missing, malformed, or incomplete reports remain errors.
+   Never use ignored failures or discard unfixed findings to make the gate pass.
+6. Keep build, runtime, unit-test, provenance, and publication checks active. Manual
+   workflow entrypoints must use the same security gate.

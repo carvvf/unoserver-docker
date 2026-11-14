@@ -1,66 +1,19 @@
-name: Build image (disabled in fork)
+name: Build image through the custom vulnerability gate
 
 on:
   workflow_dispatch:
     inputs:
       enable_upstream_workflow:
-        description: "Set to true to run this upstream-derived workflow manually"
+        description: "Set to true to run the custom gated workflow manually"
         required: true
         default: "false"
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  build:
+  gated-workflow:
     if: ${{ github.event.inputs.enable_upstream_workflow == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      matrix:
-        platform:
-          - linux/arm64
-          - linux/amd64
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5.0.0
-
-      - name: Extract container metadata
-        id: meta
-        uses: docker/metadata-action@v5.8.0
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=schedule
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=sha
-        env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.6.0
-
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v3.11.1
-
-      # Build image with Buildx (don't push)
-      - name: Build image
-        id: build-and-push
-        uses: docker/build-push-action@v6.18.0
-        with:
-          context: .
-          platforms: ${{ matrix.platform }}
-          push: false
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          provenance: mode=max
-          sbom: true
-          outputs: |
-            type=image,name=target
+    uses: ./.github/workflows/build-custom.yml
+    secrets: inherit
