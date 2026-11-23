@@ -65,6 +65,33 @@ cannot read a kept tag's index. Review its decisions with
 `gh workflow run retention-cleanup.yml --repo carvvf/unoserver-docker -f dry_run=true`.
 Completed workflow runs older than 60 days are deleted by the same workflow.
 
+Dependency update pull requests: `renovate.yml` runs Renovate weekly (Monday night,
+Europe/Rome) and on demand. It opens or refreshes one cumulative pull request with the
+updates the image workflows do not take on their own:
+
+* a new Java major or Alpine release of the `eclipse-temurin` base image tag
+* a new unoserver major (`UNOSERVER_MAJOR`)
+* a new Trivy release line (`TRIVY_LINE` in `scripts/trivy/trivy_image.sh`)
+* new versions of the GitHub Actions and of the Renovate release the workflow runs, and of
+  `docker-bench-security`
+
+A new upstream release or main commit gets a pull request of its own, described below.
+Nothing is merged automatically. Merging the pull request pushes to `custom`, which rebuilds
+and publishes through the usual gates. Renovate runs as a GitHub App installed on this
+repository: its client ID is the repository variable `RENOVATE_APP_CLIENT_ID` and its private
+key the secret `RENOVATE_APP_PRIVATE_KEY`. Issues stay disabled, so there is no Dependency
+Dashboard. Run it on demand with
+`gh workflow run renovate.yml --repo carvvf/unoserver-docker`.
+
+Upstream baseline: `publish-custom.yml` pins the upstream release and main commit merged into
+`custom` (`UPSTREAM_RELEASE` and `UPSTREAM_MAIN`, as `TAG@COMMIT`). The release sets the
+`A.B.C` of `A.B.C-custom.N`. Publication reads only these values and never fetches upstream,
+so new upstream commits or releases do not block rebuilds, security rebuilds included. Its
+preflight fails when a pinned commit is not in the history of the built commit. When upstream
+moves, Renovate opens an "upstream baseline" pull request that updates both values; merge
+upstream into that pull request's branch up to the proposed main commit, review it against
+the fork-specific files, then merge it.
+
 == The environment
 
 This Container image uses Alpine Linux as a base image and provides:
