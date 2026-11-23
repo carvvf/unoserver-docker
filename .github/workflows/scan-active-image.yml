@@ -131,8 +131,45 @@ jobs:
         if: steps.input_decision.outputs.required == 'false'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Initial scan with Trivy
+      - name: Decide rebuild from newer releases
+        id: release_decision
         if: steps.input_decision.outputs.required == 'false'
+        env:
+          IMAGE_REF: ${{ steps.target.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+
+          # A rebuild takes the newest base image behind its tag, the newest unoserver
+          # release of its major and every Alpine package upgrade. When the active image
+          # lacks one of them, a rebuild is required whatever its findings are, so a release
+          # without HIGH or CRITICAL findings is published within a day. A check that cannot
+          # complete fails the run.
+          python3 -m unittest scripts.versions.test_newer_versions
+          reasons="$(python3 scripts/versions/newer_versions.py "${IMAGE_REF}")"
+
+          required="false"
+          reason_text=""
+          if [ -n "${reasons}" ]; then
+            required="true"
+            reason_text="$(printf '%s\n' "${reasons}" | paste -sd ';' - | sed 's/;/; /g')"
+          fi
+
+          {
+            echo "required=${required}"
+            echo "reasons=${reason_text}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Newer Releases"
+            if [ -n "${reasons}" ]; then
+              printf '%s\n' "${reasons}" | sed 's/^/- /'
+            else
+              echo "- None: the active image has the newest base image, unoserver release and Alpine packages."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Initial scan with Trivy
+        if: steps.input_decision.outputs.required == 'false' && steps.release_decision.outputs.required == 'false'
         run: |
           set -euo pipefail
 
@@ -161,16 +198,24 @@ jobs:
         env:
           INPUT_REBUILD_REQUIRED: ${{ steps.input_decision.outputs.required }}
           INPUT_REASONS: ${{ steps.input_decision.outputs.reasons }}
+          RELEASE_REBUILD_REQUIRED: ${{ steps.release_decision.outputs.required }}
+          RELEASE_REASONS: ${{ steps.release_decision.outputs.reasons }}
         run: |
           set -euo pipefail
 
-          has_findings="false"
-          needs_rebuild="${INPUT_REBUILD_REQUIRED}"
+          rebuild_required="${INPUT_REBUILD_REQUIRED}"
           reason_text="${INPUT_REASONS:-none}"
+          if [ "${rebuild_required}" != "true" ] && [ "${RELEASE_REBUILD_REQUIRED}" = "true" ]; then
+            rebuild_required="true"
+            reason_text="newer releases: ${RELEASE_REASONS}"
+          fi
+
+          has_findings="false"
+          needs_rebuild="${rebuild_required}"
           critical_count="not scanned (rebuild already required)"
           high_count="${critical_count}"
 
-          if [ "${INPUT_REBUILD_REQUIRED}" != "true" ]; then
+          if [ "${rebuild_required}" != "true" ]; then
             if [ ! -f trivy-report-initial.json ]; then
               echo "Trivy report not found." >&2
               exit 1

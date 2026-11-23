@@ -34,8 +34,11 @@ Image rebuild triggers:
   publication, final scan of `latest`.
 * The daily run rebuilds when the active `latest` image was built from another commit of this
   repository (its `org.opencontainers.image.revision` label differs from the `custom` head,
-  or is missing), when `latest` does not exist yet, or when the active image has HIGH or
-  CRITICAL findings. A commit-driven rebuild happens whether or not the upstream version
+  or is missing), when `latest` does not exist yet, when the active image lacks a release a
+  rebuild would take (a newer base image behind its tag, the newest unoserver release of
+  `UNOSERVER_MAJOR`, an Alpine package upgrade; see `scripts/versions/newer_versions.py`), or
+  when the active image has HIGH or CRITICAL findings. A check that cannot complete fails
+  the run. A commit-driven rebuild happens whether or not the upstream version
   changed: the version stays `A.B.C` and only `N` in `A.B.C-custom.N` increases.
   Documentation-only commits are included.
 * Daily, manual and push-triggered runs of `scan-active-image.yml` are serialized, so two of
@@ -45,6 +48,11 @@ Image rebuild triggers:
   serialized only with other publications.
 * To rebuild without a new commit, request one manually:
   `gh workflow run scan-active-image.yml --repo carvvf/unoserver-docker -f force_rebuild=true`
+
+Pull request checks: every pull request to `custom` starts `pull-request.yml`, which runs
+`build-custom.yml`: build and Trivy scan of both platforms under the publication
+vulnerability policy, and the `linux/amd64` integration tests. It publishes nothing; review
+its result before merging.
 
 A successful rebuild and clean final scan complete the workflow successfully. Review
 workflow summaries and published tags, then pull the new image and redeploy downstream
