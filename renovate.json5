@@ -1,7 +1,11 @@
 {
   $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  // Renovate proposes only what the image workflows do not move on their own: a new Java
+  // major or Alpine release of the base image, a new unoserver major, a new Trivy line and the
+  // GitHub Actions versions. Rebuilds already take the newest unoserver release of the pinned
+  // major, the newest Temurin patch behind the floating tag, Alpine package upgrades and the
+  // newest Trivy patch of its line.
   // Keep pinned GitHub Actions on a commit digest, with the release tag in a comment.
-  // Trivy is not listed: scripts/trivy/trivy_image.sh resolves its newest patch release.
   extends: ["helpers:pinGitHubActionDigests"],
   enabledManagers: ["dockerfile", "github-actions", "custom.regex"],
   // Only what the `custom` branch builds and runs. The Dockerfile and the workflows inherited
@@ -13,7 +17,42 @@
     ".github/workflows/build.yml",
     ".github/workflows/publish-containers.yml",
   ],
+  // Issues stay disabled in this repository, so there is no Dependency Dashboard: the pull
+  // request is the notice. Nothing is merged automatically.
+  dependencyDashboard: false,
+  automerge: false,
   customManagers: [
+    {
+      // Upstream baseline of publish-custom.yml (TAG@COMMIT): the newest upstream release and
+      // the upstream main commit merged into custom.
+      customType: "regex",
+      managerFilePatterns: ["/^\\.github/workflows/publish-custom\\.yml$/"],
+      matchStrings: [
+        '# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n\\s*UPSTREAM_\\w+: "(?<currentValue>[^@"]+)@(?<currentDigest>[0-9a-f]{40})"',
+      ],
+    },
+    {
+      // Only the major is pinned; the build installs the newest release of it.
+      customType: "regex",
+      managerFilePatterns: ["/^Dockerfile\\.custom$/"],
+      matchStrings: ["ARG UNOSERVER_MAJOR=(?<currentValue>\\d+)"],
+      datasourceTemplate: "pypi",
+      depNameTemplate: "unoserver",
+      extractVersionTemplate: "^(?<version>\\d+)",
+      versioningTemplate: "loose",
+    },
+    {
+      // Only the release line is pinned; trivy_image.sh resolves its newest patch.
+      // TRIVY_FLOOR is not rewritten: a floor below the new line is still satisfied, and it is
+      // raised by hand when a patch of the new line becomes mandatory.
+      customType: "regex",
+      managerFilePatterns: ["/^scripts/trivy/trivy_image\\.sh$/"],
+      matchStrings: ['TRIVY_LINE="(?<currentValue>\\d+\\.\\d+)"'],
+      datasourceTemplate: "docker",
+      depNameTemplate: "aquasec/trivy",
+      extractVersionTemplate: "^(?<version>\\d+\\.\\d+)\\.\\d+$",
+      versioningTemplate: "loose",
+    },
     {
       customType: "regex",
       managerFilePatterns: ["/^scripts/docker-bench/run\\.sh$/"],
@@ -24,11 +63,28 @@
   ],
   packageRules: [
     {
-      // The base image tag carries the Alpine release (27-jre-alpine-3.24); a new Java major
-      // or Alpine release changes what LibreOffice build the image ships, so it is reviewed.
+      // One cumulative pull request per run, rebased while new updates arrive.
+      matchPackageNames: ["*"],
+      groupName: "dependency updates",
+    },
+    {
+      // A new upstream release or main commit needs upstream merged into custom before the
+      // preflight passes, so it has a pull request of its own that never holds back the others.
+      matchDepNames: ["unoconv/unoserver-docker", "https://github.com/unoconv/unoserver-docker.git"],
+      groupName: "upstream baseline",
+      prBodyNotes: [
+        "Upstream moved. Before merging, merge upstream into this branch up to the proposed main commit (`git fetch https://github.com/unoconv/unoserver-docker.git main && git merge FETCH_HEAD`), review the result against the fork-specific files, and push. Merged without it, publication from `custom` fails at the preflight.",
+      ],
+    },
+    {
+      // The tag carries the Java major and the Alpine release (27-jre-alpine-3.24); both change
+      // what LibreOffice build the image ships, so both are reviewed. Docker versioning would
+      // treat "alpine-3.24" as a fixed suffix and never offer a new Alpine release, so the
+      // components are named here. A new Alpine release shows up as a "patch" update because
+      // regex versioning needs three components.
       matchManagers: ["dockerfile"],
       matchPackageNames: ["eclipse-temurin"],
-      automerge: false,
+      versioning: "regex:^(?<major>\\d+)-jre-alpine-(?<minor>\\d+)\\.(?<patch>\\d+)$",
     },
   ],
 }

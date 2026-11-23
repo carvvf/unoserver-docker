@@ -2,32 +2,21 @@ name: Publish custom image
 
 on:
   workflow_dispatch:
-    inputs:
-      upstream_repository:
-        description: "Upstream repository in owner/name format"
-        required: true
-        default: "unoconv/unoserver-docker"
-      upstream_branch:
-        description: "Upstream branch used for alignment and version base"
-        required: true
-        default: "main"
   workflow_call:
-    inputs:
-      upstream_repository:
-        description: "Upstream repository in owner/name format"
-        required: false
-        type: string
-        default: "unoconv/unoserver-docker"
-      upstream_branch:
-        description: "Upstream branch used for alignment and version base"
-        required: false
-        type: string
-        default: "main"
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  # Upstream baseline of this branch, as TAG@COMMIT: the newest upstream release merged into
+  # custom, which sets the A.B.C of A.B.C-custom.N, and the upstream main commit merged into
+  # custom. Publication reads only these values, so new upstream commits or releases never
+  # block it. Renovate proposes both when upstream moves; the preflight then fails until
+  # upstream is merged into custom, so its pull request is completed by that merge.
+  # renovate: datasource=github-tags depName=unoconv/unoserver-docker
+  UPSTREAM_RELEASE: "v0.4.4@c81c0729924750e346e237b89f8ff062d7597a35"
+  # renovate: datasource=git-refs depName=https://github.com/unoconv/unoserver-docker.git
+  UPSTREAM_MAIN: "main@c81c0729924750e346e237b89f8ff062d7597a35"
 
 concurrency:
   group: unoserver-image-publish-${{ github.repository }}
@@ -53,29 +42,32 @@ jobs:
       - name: Check vulnerability report policy
         run: python3 -m unittest scripts.trivy.test_report_policy
 
-      - name: Verify current branch is aligned with upstream
+      - name: Verify the upstream baseline is merged into this branch
         run: |
           set -euo pipefail
-          git remote add upstream "https://github.com/${{ inputs.upstream_repository }}.git"
-          git fetch --no-tags upstream "${{ inputs.upstream_branch }}:refs/remotes/upstream/${{ inputs.upstream_branch }}"
-
-          if ! git merge-base --is-ancestor "refs/remotes/upstream/${{ inputs.upstream_branch }}" HEAD; then
-            echo "Branch '${GITHUB_REF_NAME}' is not aligned with upstream '${{ inputs.upstream_repository }}:${{ inputs.upstream_branch }}'." >&2
-            echo "Merge/rebase upstream first, then rerun this workflow." >&2
+          release_commit="${UPSTREAM_RELEASE#*@}"
+          main_commit="${UPSTREAM_MAIN#*@}"
+          for commit in "${release_commit}" "${main_commit}"; do
+            if ! git cat-file -e "${commit}^{commit}" 2>/dev/null || ! git merge-base --is-ancestor "${commit}" HEAD; then
+              echo "Upstream commit ${commit} is not merged into branch '${GITHUB_REF_NAME}'." >&2
+              echo "Merge upstream into custom up to UPSTREAM_MAIN (${UPSTREAM_MAIN}), then rerun this workflow." >&2
+              exit 1
+            fi
+          done
+          if ! git merge-base --is-ancestor "${release_commit}" "${main_commit}"; then
+            echo "UPSTREAM_RELEASE (${UPSTREAM_RELEASE}) is not on the upstream main history ending at ${main_commit}." >&2
             exit 1
           fi
 
-      - name: Compute custom version from upstream tag
+      - name: Compute custom version from the upstream release
         id: version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git fetch --tags upstream
-
-          upstream_tag="$(git tag -l --merged "refs/remotes/upstream/${{ inputs.upstream_branch }}" | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
-          if [ -z "${upstream_tag}" ]; then
-            echo "No upstream semver tag found on '${{ inputs.upstream_repository }}:${{ inputs.upstream_branch }}'." >&2
+          upstream_tag="${UPSTREAM_RELEASE%%@*}"
+          if ! printf '%s\n' "${upstream_tag}" | grep -qE '^v?[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "UPSTREAM_RELEASE tag '${upstream_tag}' is not a semantic version." >&2
             exit 1
           fi
 
