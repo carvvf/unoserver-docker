@@ -65,7 +65,7 @@
     {
       // One cumulative pull request per run, rebased while new updates arrive.
       matchPackageNames: ["*"],
-      groupName: "dependency updates",
+      groupName: "uncovered dependencies",
     },
     {
       // A new upstream release or main commit needs upstream merged into custom before the
