@@ -51,8 +51,10 @@ Image rebuild triggers:
 
 Pull request checks: every pull request to `custom` starts `pull-request.yml`, which runs
 `build-custom.yml`: build and Trivy scan of both platforms under the publication
-vulnerability policy, and the `linux/amd64` integration tests. It publishes nothing; review
-its result before merging.
+vulnerability policy, and the `linux/amd64` integration tests. It also validates
+`renovate.json5` with `renovate-config-validator --strict` and the Renovate release
+`renovate.yml` runs, so a pull request moving that release fails when the configuration
+needs a migration. It publishes nothing; review its result before merging.
 
 A successful rebuild and clean final scan complete the workflow successfully. Review
 workflow summaries and published tags, then pull the new image and redeploy downstream

@@ -19,7 +19,7 @@
   ],
   // Issues stay disabled in this repository, so there is no Dependency Dashboard: the pull
   // request is the notice. Nothing is merged automatically.
-  dependencyDashboard: false,
+  dependencyDashboard: { enabled: false },
   automerge: false,
   customManagers: [
     {
