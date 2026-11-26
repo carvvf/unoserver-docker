@@ -21,6 +21,8 @@
   // request is the notice. Nothing is merged automatically.
   dependencyDashboard: { enabled: false },
   automerge: false,
+  // Major updates stay in the cumulative pull request instead of a branch of their own.
+  separateMajorMinor: false,
   customManagers: [
     {
       // Upstream baseline of publish-custom.yml (TAG@COMMIT): the newest upstream release and
