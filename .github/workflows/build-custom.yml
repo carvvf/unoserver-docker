@@ -37,6 +37,9 @@ jobs:
       - name: Check vulnerability report policy
         run: python3 -m unittest scripts.trivy.test_report_policy
 
+      - name: Check the package index retry helper
+        run: python3 -m unittest discover -s scripts/build -p test_retry.py
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 

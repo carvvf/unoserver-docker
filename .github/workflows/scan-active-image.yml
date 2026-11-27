@@ -145,6 +145,7 @@ jobs:
           # without HIGH or CRITICAL findings is published within a day. A check that cannot
           # complete fails the run.
           python3 -m unittest scripts.versions.test_newer_versions
+          python3 -m unittest discover -s scripts/build -p test_retry.py
           reasons="$(python3 scripts/versions/newer_versions.py "${IMAGE_REF}")"
 
           required="false"

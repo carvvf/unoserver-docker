@@ -49,6 +49,13 @@ Image rebuild triggers:
 * To rebuild without a new commit, request one manually:
   `gh workflow run scan-active-image.yml --repo carvvf/unoserver-docker -f force_rebuild=true`
 
+Package index retries: `Dockerfile.custom` and the daily newer-release check refresh
+the Alpine package index through `build/retry.sh`, which retries a failed command up to
+five times with pauses of 30, 60, 90 and 120 seconds. A mirror that is mid-sync or
+briefly unreachable therefore no longer fails the build or the check at once; a failure
+that outlasts every attempt still fails it. The Dockerfile mounts the script for the
+command only, so it is not part of the image.
+
 Pull request checks: every pull request to `custom` starts `pull-request.yml`, which runs
 `build-custom.yml`: build and Trivy scan of both platforms under the publication
 vulnerability policy, and the `linux/amd64` integration tests. It also validates

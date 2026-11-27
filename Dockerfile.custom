@@ -23,9 +23,12 @@ WORKDIR /
 
 RUN addgroup -S ${GID} && adduser -S ${UID} -G ${GID}
 
+# Package index updates go through build/retry.sh, mounted for the command only: it
+# retries them with growing pauses while a distribution mirror is mid-sync.
 # hadolint ignore=DL3018
-RUN apk upgrade --no-cache && \
-    apk add --no-cache \
+RUN --mount=type=bind,source=build/retry.sh,target=/mnt/retry.sh \
+    sh /mnt/retry.sh apk upgrade --no-cache && \
+    sh /mnt/retry.sh apk add --no-cache \
     bash curl \
     py3-pip \
     libreoffice \

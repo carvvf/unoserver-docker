@@ -9,7 +9,8 @@ commit. Each check asks the same source the rebuild would use:
 
 1. base image: the base tag's layers must be the first layers of the image, per platform;
 2. unoserver: pip resolves the requirement inside the image, as the build does;
-3. Alpine packages: apk lists the upgrades inside the image after refreshing its index.
+3. Alpine packages: apk lists the upgrades inside the image after refreshing its index,
+   a refresh build/retry.sh retries while a mirror is mid-sync.
 
 Checks 2 and 3 run the image on the runner's platform; the arm64 image is built from the
 same releases. Prints one reason per line and exits 0, also when nothing is newer. Any check
@@ -24,7 +25,10 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 
+# Mounted into the image to retry its index update while a mirror is mid-sync.
+RETRY_HELPER = Path(__file__).resolve().parents[2] / "build" / "retry.sh"
 APK_UPGRADABLE = re.compile(
     r"^(?P<new>\S+) \S+ \{[^}]*\} \([^)]*\) \[upgradable from: (?P<old>\S+)\]$"
 )
@@ -141,8 +145,9 @@ def check_unoserver(image_ref: str, requirement: str) -> list[str]:
 
 def check_apk(image_ref: str) -> list[str]:
     output = run(
-        "docker", "run", "--rm", "--user", "root", "--entrypoint", "sh", image_ref, "-c",
-        "apk update --quiet >/dev/null && apk list --upgradable",
+        "docker", "run", "--rm", "--user", "root", "-v", f"{RETRY_HELPER}:/mnt/retry.sh:ro",
+        "--entrypoint", "sh", image_ref, "-c",
+        "sh /mnt/retry.sh apk update --quiet >/dev/null && apk list --upgradable",
     )
     upgrades = parse_apk_upgradable(output)
     return [describe_apk_upgrades(upgrades)] if upgrades else []
